@@ -1,0 +1,21 @@
+{
+  "name": "mangalli",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "packageManager": "pnpm@9.15.0",
+  "scripts": {
+    "dev": "pnpm --filter @1garis/mangalli-pos dev",
+    "build": "pnpm --filter @1garis/mangalli-pos build",
+    "start": "pnpm --filter @1garis/mangalli-pos start",
+    "db:migrate": "pnpm --filter @1garis/mangalli-pos db:migrate",
+    "db:seed": "pnpm --filter @1garis/mangalli-pos db:seed",
+    "lint": "pnpm --filter @1garis/mangalli-pos lint",
+    "typecheck": "pnpm --filter @1garis/mangalli-pos typecheck",
+    "test": "pnpm --filter @1garis/mangalli-pos test"
+  },
+  "devDependencies": {
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^16.3.5",
+    "typescript": "^6.0.3"
+  }
+}

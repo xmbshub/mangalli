@@ -1,0 +1,33 @@
+# Self-host Mangalli POS: PostgreSQL plus the dashboard on port 4107.
+# cp apps/mangalli-pos/.env.example .env, fill it in, then: docker compose up -d --build
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: mangalli
+      POSTGRES_USER: mangalli
+      POSTGRES_PASSWORD: mangalli
+    volumes:
+      - db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mangalli -d mangalli"]
+      interval: 5s
+      retries: 20
+
+  pos:
+    build:
+      context: .
+      dockerfile: apps/mangalli-pos/Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://mangalli:mangalli@db:5432/mangalli
+    ports:
+      - "4107:4107"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  db:

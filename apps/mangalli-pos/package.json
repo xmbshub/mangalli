@@ -1,0 +1,42 @@
+{
+  "name": "@1garis/mangalli-pos",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev -p 4107",
+    "build": "next build",
+    "start": "next start -p 4107",
+    "db:migrate": "tsx scripts/migrate.ts",
+    "db:seed": "tsx scripts/seed.ts",
+    "data:export:legacy": "python3 scripts/export-laravel-sqlite.py",
+    "data:import:legacy": "tsx scripts/import-laravel-json.ts",
+    "lint": "eslint . --config ../../eslint.config.mjs",
+    "test": "node --conditions=react-server --import tsx --test server/*.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@1garis/menu-pos-core": "workspace:*",
+    "@aws-sdk/client-s3": "3.1133.0",
+    "bcryptjs": "^3.0.3",
+    "jose": "^6.2.12",
+    "jsqr": "^1.4.0",
+    "lucide-react": "^1.46.0",
+    "next": "^16.3.5",
+    "pg": "^8.23.0",
+    "qrcode": "^1.5.4",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "server-only": "^0.0.1",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.5",
+    "@types/pg": "^8.23.1",
+    "@types/qrcode": "^1.5.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "tsx": "^4.23.13",
+    "typescript": "^6.0.3"
+  }
+}

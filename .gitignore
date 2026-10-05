@@ -1,0 +1,10 @@
+node_modules/
+.next/
+.env
+.env.local
+*.tsbuildinfo
+._*
+.DS_Store
+.gradle/
+local.properties
+build/

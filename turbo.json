@@ -1,0 +1,47 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "globalPassThroughEnv": [
+    "DATABASE_URL",
+    "ANDROID_POS_CUSTOM_AMOUNT_MAX",
+    "ANDROID_POS_SETUP_TOKEN",
+    "DOCS_ELINE_PUBLIC_URL",
+    "MENU_POS_BINDINGS_JSON",
+    "MENU_POS_ADAPTER_TOKEN",
+    "MENU_POS_DEFAULT_OUTLET_KEY",
+    "MENU_POS_PUBLIC_ORDER_URL",
+    "MIDTRANS_IS_PRODUCTION",
+    "MIDTRANS_SERVER_KEY",
+    "IDENTITY_PROXY_ENABLED",
+    "IDENTITY_PROXY_SECRET",
+    "PAYLOAD_SECRET",
+    "POS_OWNER_EMAIL",
+    "POS_OWNER_PASSWORD",
+    "POS_SESSION_SECRET",
+    "R2_ACCESS_KEY_ID",
+    "R2_BUCKET",
+    "R2_ENDPOINT",
+    "R2_PUBLIC_URL",
+    "R2_SECRET_ACCESS_KEY",
+    "SITES_PUBLIC_URL",
+    "STUDIO_PUBLIC_URL",
+    "STUDIO_RENDER_API_URL"
+  ],
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": [".next/**", "dist/**"]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "lint": {
+      "dependsOn": ["^lint"],
+      "outputs": []
+    },
+    "typecheck": {
+      "dependsOn": ["^typecheck"],
+      "outputs": []
+    }
+  }
+}
