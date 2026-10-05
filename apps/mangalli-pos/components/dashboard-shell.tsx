@@ -11,6 +11,7 @@ import { useEffect, type ReactNode } from "react";
 
 import { logoutAction, switchOutletAction } from "@/app/actions";
 import { AskEline } from "@/components/ask-eline";
+import { ChartTips } from "@/components/chart-tips";
 import { Toaster } from "@/components/interactive";
 import { OrderAlerts, OrderSoundToggle } from "@/components/order-alerts";
 import { WhatsNew, type DashboardRelease } from "@/components/whats-new";
@@ -142,6 +143,7 @@ export function DashboardShell({ children, counts, menuUrl, operator, outlets, r
       </main>
       {sound ? <OrderAlerts /> : null}
       <Toaster />
+      <ChartTips />
       <WhatsNew release={release} />
       <AskEline role={operator.role} />
     </div>
