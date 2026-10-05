@@ -71,6 +71,9 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalConfiguration
@@ -552,6 +555,97 @@ fun Numpad(onKey: (String) -> Unit, onBackspace: () -> Unit, modifier: Modifier 
     }
 }
 
+// PIN 6 titik + papan angka besar, tanpa keyboard sistem (permintaan owner 5 Okt 2026,
+// meniru layar passcode ponsel; sama dengan PinField di dashboard). Sesudah PIN lengkap
+// ditolak (`error`), titik memerah dan bergetar, dan angka berikutnya memulai PIN baru.
+// Galat lain dialog (alasan kosong, nominal) tidak menghapus PIN yang sedang diketik.
+@Composable
+fun PinPad(
+    pin: String,
+    onPin: (String) -> Unit,
+    error: Boolean = false,
+    label: String? = null,
+    onComplete: ((String) -> Unit)? = null,
+    modifier: Modifier = Modifier,
+) {
+    val haptics = LocalHapticFeedback.current
+    val shake = remember { androidx.compose.animation.core.Animatable(0f) }
+    val rejected = error && pin.length == 6
+    LaunchedEffect(error) {
+        if (error) {
+            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+            listOf(-10f, 10f, -8f, 8f, -4f, 0f).forEach { shake.animateTo(it, tween(45)) }
+        }
+    }
+    val press = { key: String ->
+        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+        val next = when {
+            key == "⌫" -> if (rejected) "" else pin.dropLast(1)
+            rejected -> key
+            else -> (pin + key).take(6)
+        }
+        onPin(next)
+        if (next.length == 6 && key != "⌫") onComplete?.invoke(next)
+    }
+    Column(
+        modifier = modifier.widthIn(max = 340.dp).fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(Pos.Space3),
+    ) {
+        if (label != null) Text(label, style = PosType.Label, color = Pos.Ink, modifier = Modifier.fillMaxWidth())
+        PinDots(pin, error, Modifier.padding(vertical = Pos.Space2).graphicsLayer { translationX = shake.value.dp.toPx() })
+        val rows = listOf(listOf("1", "2", "3"), listOf("4", "5", "6"), listOf("7", "8", "9"), listOf("", "0", "⌫"))
+        Column(verticalArrangement = Arrangement.spacedBy(Pos.Space2)) {
+            rows.forEach { row ->
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Pos.Space2)) {
+                    row.forEach { key ->
+                        if (key.isEmpty()) {
+                            Spacer(Modifier.weight(1f).height(56.dp))
+                        } else {
+                            val enabled = if (key == "⌫") pin.isNotEmpty() else (pin.length < 6 || rejected)
+                            val interaction = remember { MutableInteractionSource() }
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(56.dp)
+                                    .pressable(interaction)
+                                    .clip(RoundedCornerShape(Pos.Radius))
+                                    .background(Pos.SurfaceMuted)
+                                    .border(1.dp, Pos.Line, RoundedCornerShape(Pos.Radius))
+                                    .clickable(enabled = enabled, interactionSource = interaction, indication = null, onClickLabel = if (key == "⌫") "Delete" else key) { press(key) },
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                if (key == "⌫") Icon(Icons.Outlined.Backspace, contentDescription = "Delete", tint = if (enabled) Pos.Text else Pos.Subtle, modifier = Modifier.size(22.dp))
+                                else Text(key, style = PosType.AmountSmall.copy(fontWeight = PosType.Body.fontWeight), color = if (enabled) Pos.Ink else Pos.Subtle)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun PinDots(pin: String, error: Boolean, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier.semantics { contentDescription = "PIN, ${pin.length} of 6 digits entered" },
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        repeat(6) { index ->
+            val filled = index < pin.length
+            val tint = if (error && pin.length == 6) Pos.Danger else Pos.Ink
+            Box(
+                Modifier
+                    .size(14.dp)
+                    .clip(CircleShape)
+                    .background(if (filled) tint else Color.Transparent)
+                    .border(1.5.dp, if (filled) tint else if (error) Pos.Danger else Pos.Muted, CircleShape),
+            )
+        }
+    }
+}
+
 fun appendDigits(current: String, key: String, maxDigits: Int = 10): String =
     (current + key).trimStart('0').take(maxDigits)
 
@@ -760,8 +854,38 @@ fun ApprovalFields(
         }
         PosTextField(reason, { onReason(it.take(200)) }, reasonLabel, placeholder = "Write a short reason", capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Sentences, highlightError = error != null && !needsApproval)
         if (needsApproval) {
-            PosTextField(password, { onPassword(it.filter(Char::isDigit).take(6)) }, "Manager PIN", placeholder = "6 digits", password = true, keyboardType = KeyboardType.NumberPassword, highlightError = error != null)
-            Text("Approved by a manager, logged with their name.", style = PosType.Caption, color = Pos.Muted)
+            // Form dialog tetap ringkas: baris titik PIN, papan angkanya di dialog kecil
+            // yang menutup sendiri sesudah angka keenam.
+            var entering by remember { mutableStateOf(false) }
+            val pinShape = RoundedCornerShape(Pos.Radius)
+            Column(verticalArrangement = Arrangement.spacedBy(Pos.Space2)) {
+                Text("Manager PIN", style = PosType.Label, color = Pos.Ink)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp)
+                        .clip(pinShape)
+                        .border(1.dp, if (error != null) Pos.Danger else Pos.Line, pinShape)
+                        .clickable(onClickLabel = "Enter manager PIN") { entering = true }
+                        .padding(horizontal = Pos.Space4),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    PinDots(password, error != null)
+                    Spacer(Modifier.weight(1f))
+                    Text(if (password.isEmpty()) "Enter PIN" else "Change", style = PosType.Label, color = Pos.Primary)
+                }
+                Text("Approved by a manager, logged with their name.", style = PosType.Caption, color = Pos.Muted)
+            }
+            if (entering) {
+                var draft by remember { mutableStateOf("") }
+                PosDialog(onDismiss = { entering = false }, width = 420.dp) {
+                    DialogHeader("Manager PIN", "A manager or owner types their approval PIN.", onClose = { entering = false })
+                    DialogBody {
+                        PinPad(draft, { draft = it }, onComplete = { onPassword(it); entering = false },
+                            modifier = Modifier.align(Alignment.CenterHorizontally))
+                    }
+                }
+            }
         } else {
             Text("Recorded in the audit log with your name.", style = PosType.Caption, color = Pos.Muted)
         }

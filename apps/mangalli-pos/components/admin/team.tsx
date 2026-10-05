@@ -7,6 +7,7 @@ import { ActionForm, FieldLabel, Drawer, FilterForm, Hint, SearchField, FormFoot
 import { Badge, EmptyState, PAGE_SIZE, PageHeader, Pagination, Panel, Tabs } from "@/components/ui";
 import type { Operator } from "@/server/auth";
 import { brandOutlets } from "@/server/branches";
+import { PinField } from "@/components/pin-field";
 import { config } from "@/server/config";
 import { auditData, auditKinds, shiftsData, usersData, type AuditKind } from "@/server/admin";
 import { formatDate, outletFormat } from "@/server/format";
@@ -106,7 +107,7 @@ export async function UsersSection({ operator, edit, creating }: { operator: Ope
               ))}</div>
             </fieldset>
             <label className="field"><FieldLabel>New password</FieldLabel><input autoComplete="new-password" maxLength={128} minLength={6} name="password" placeholder="Leave empty to keep it" type="password" /></label>
-            <label className="field approval-pin"><FieldLabel hint="Typed on the tablet to approve voids, refunds, and discounts. Different from the password, so a leaked password can't approve.">{current?.has_pin ? "New approval PIN" : "Approval PIN"}</FieldLabel><input autoComplete="off" inputMode="numeric" maxLength={6} minLength={6} name="pin" pattern="[0-9]{6}" placeholder={current?.has_pin ? "Set · leave empty to keep it" : "6 digits"} type="password" /></label>
+            <div className="field approval-pin"><FieldLabel hint="Typed on the tablet to approve voids, refunds, and discounts. Different from the password, so a leaked password can't approve.">{current?.has_pin ? "New approval PIN" : "Approval PIN"}</FieldLabel><PinField autoFocus={false} label={current?.has_pin ? "New approval PIN" : "Approval PIN"} />{current?.has_pin ? <small className="hint">Leave empty to keep the current PIN.</small> : null}</div>
             <FormFooter><SubmitButton pendingLabel="Saving…">Save changes</SubmitButton></FormFooter>
           </ActionForm>
           {grantable.length ? (

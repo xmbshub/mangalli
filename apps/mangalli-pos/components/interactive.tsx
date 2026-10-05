@@ -15,6 +15,8 @@ import type { FormState } from "@/server/http";
 type Action = (state: FormState, data: FormData) => Promise<FormState>;
 
 const FormContext = createContext<{ state: FormState; pending: boolean }>({ state: null, pending: false });
+/** Hasil dan status kirim ActionForm terdekat, untuk isian yang bereaksi sendiri (PinField). */
+export const useActionFormState = () => useContext(FormContext);
 
 // Notifikasi hasil aksi sebagai toast (permintaan owner 5 Okt 2026), bukan
 // teks di dalam form. <Toaster /> di kerangka dashboard yang menampilkannya.
@@ -58,8 +60,10 @@ const notifyPending = () => pendingListeners.forEach((listener) => listener());
 // Form tidak dikosongkan saat gagal, supaya isian tidak hilang. Setelah
 // berhasil: pindah ke `href` dari aksi atau `successHref`, atau kosongkan
 // form bila `reset`. `confirm` membuka dialog konfirmasi milik aplikasi.
-export function ActionForm({ action, children, className = "form", confirm, confirmLabel = "Confirm", successHref, reset, id }: {
+export function ActionForm({ action, children, className = "form", confirm, confirmLabel = "Confirm", successHref, reset, id, toast = true }: {
   action: Action; children: ReactNode; className?: string; confirm?: string; confirmLabel?: string; successHref?: string; reset?: boolean; id?: string;
+  // false: hasilnya ditampilkan di dalam form sendiri (mis. dialog PIN), bukan toast kedua.
+  toast?: boolean;
 }) {
   const router = useRouter();
   const ref = useRef<HTMLFormElement>(null);
@@ -67,7 +71,7 @@ export function ActionForm({ action, children, className = "form", confirm, conf
   // bisa sudah hilang saat data diperbarui (misalnya setelah menghapus).
   const [state, dispatch, pending] = useActionState(async (previous: FormState, data: FormData) => {
     const result = await action(previous, data);
-    if (result?.message) showToast(result.ok ? "ok" : "error", result.message);
+    if (result?.message && toast) showToast(result.ok ? "ok" : "error", result.message);
     const href = result?.ok ? result.href ?? successHref : undefined;
     if (href) router.push(href, { scroll: false });
     return result;

@@ -860,9 +860,34 @@ body:has(.step-up-backdrop) :is(.sidebar, .mobile-header) { z-index: 61; }
 .dialog.step-up { width: min(100%, 360px); justify-items: center; text-align: center; }
 .dialog.step-up p { margin-top: 6px; }
 .step-up-icon { width: 48px; height: 48px; display: grid; place-items: center; border-radius: 50%; background: var(--orange-50); color: var(--orange-600); }
-.step-up-form { width: 100%; display: flex; gap: 8px; }
-.step-up-form input { flex: 1; min-width: 0; text-align: center; letter-spacing: .3em; }
-.step-up-form input::placeholder { letter-spacing: 0; }
+.step-up-form { width: 100%; display: grid; }
+/* Halaman di belakang dialog PIN tidak ikut bergulir. */
+:root:has(.step-up-backdrop) { overflow: hidden; }
+
+/* PIN 6 titik (PinField), sama dengan PinPad di tablet. Isian aslinya tersembunyi di
+   balik titik supaya keyboard fisik, pengelola sandi, dan pembaca layar tetap bekerja. */
+.pin-field { display: grid; gap: 12px; }
+.pin-field.with-keypad { justify-items: center; }
+.pin-dots { position: relative; display: flex; gap: 14px; justify-content: flex-start; padding: 10px 0; cursor: text; }
+.pin-field.with-keypad .pin-dots { justify-content: center; }
+.pin-input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; border: 0; padding: 0; caret-color: transparent; cursor: text; }
+.pin-dot { width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid var(--muted); transition: background .12s, border-color .12s, transform .12s; }
+.pin-dot.filled { background: var(--ink); border-color: var(--ink); transform: scale(1.05); }
+.pin-dots:focus-within .pin-dot:not(.filled) { border-color: var(--orange-500); }
+.pin-dots[data-shake] .pin-dot { border-color: var(--danger, #dc2626); }
+.pin-dots[data-shake="a"] { animation: pin-shake-a .38s; }
+.pin-dots[data-shake="b"] { animation: pin-shake-b .38s; }
+@keyframes pin-shake-a { 20%, 60% { transform: translateX(-8px); } 40%, 80% { transform: translateX(8px); } }
+@keyframes pin-shake-b { 20%, 60% { transform: translateX(-8px); } 40%, 80% { transform: translateX(8px); } }
+@media (prefers-reduced-motion: reduce) { .pin-dots[data-shake] { animation: none; } }
+.pin-status { min-height: 1.4em; margin: -6px 0 0; text-align: center; color: var(--muted); font-size: var(--fs-sm); }
+.pin-status.error { color: var(--danger, #dc2626); }
+.pin-keypad { width: 100%; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.pin-key { height: 52px; border: 1px solid var(--line); border-radius: var(--control-radius); background: var(--line-soft); color: var(--ink); font-size: 20px; font-weight: var(--fw-regular); display: grid; place-items: center; cursor: pointer; transition: background .12s, transform .08s; touch-action: manipulation; }
+.pin-key:hover { background: var(--orange-50); }
+.pin-key:active { transform: scale(.97); }
+.pin-key:disabled { opacity: .45; cursor: default; transform: none; }
+.pin-key:focus-visible { outline: 2px solid var(--orange-500); outline-offset: 2px; }
 .step-up-hint { padding-bottom: 0; }
 /* Judul dengan tooltip penjelasan (PageHeader/Panel info). */
 .page-header h1, .panel-header h2, .form-section h3 { display: flex; align-items: center; gap: 6px; }

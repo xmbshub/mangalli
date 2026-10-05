@@ -3,7 +3,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { unlockSettingsAction } from "@/app/actions";
-import { ActionForm, SubmitButton } from "@/components/interactive";
+import { ActionForm } from "@/components/interactive";
 import { PinField } from "@/components/pin-field";
 import type { Operator } from "@/server/auth";
 import { hasStepUpSecret, STEP_UP_MINUTES, stepUpUntil } from "@/server/step-up";
@@ -34,10 +34,9 @@ export async function StepUpGate({ operator, title, next, children }: { operator
             <h2 id="step-up-title">Enter your PIN</h2>
             <p>Opens {title} for {STEP_UP_MINUTES} minutes.</p>
           </div>
-          <ActionForm action={unlockSettingsAction} className="step-up-form">
+          <ActionForm action={unlockSettingsAction} className="step-up-form" toast={false}>
             <input name="next" type="hidden" value={next} />
-            <PinField />
-            <SubmitButton pendingLabel="Checking…">Unlock</SubmitButton>
+            <PinField autoSubmit keypad />
           </ActionForm>
         </section>
       </div>

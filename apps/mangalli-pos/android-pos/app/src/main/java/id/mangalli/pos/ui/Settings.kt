@@ -318,13 +318,12 @@ private fun TabletModeCard(state: PosUiState, actions: PosActions) {
         PosDialog(onDismiss = { unlocking = false }, width = 440.dp) {
             DialogHeader("Unlock this tablet", "A manager or owner types their approval PIN.", onClose = { unlocking = false })
             DialogBody {
-                PosTextField(pin, { pin = it.filter(Char::isDigit).take(6); error = null }, "Manager PIN", placeholder = "6 digits", password = true,
-                    keyboardType = androidx.compose.ui.text.input.KeyboardType.NumberPassword, highlightError = error != null,
-                    onImeAction = { if (pin.length == 6) unlock() })
+                // Angka keenam langsung membuka kunci, seperti layar passcode ponsel.
+                PinPad(pin, { pin = it; error = null }, error = error != null, onComplete = { unlock() },
+                    modifier = Modifier.align(Alignment.CenterHorizontally))
             }
-            DialogFooter(hint = error, hintTone = Tone.Danger) {
+            DialogFooter(hint = error ?: if (state.isBusy) "Checking…" else null, hintTone = if (error != null) Tone.Danger else Tone.Neutral) {
                 PosButton("Cancel", onClick = { unlocking = false }, variant = ButtonVariant.Secondary)
-                PosButton("Unlock", onClick = { unlock() }, enabled = pin.length == 6, loading = state.isBusy)
             }
         }
     }
