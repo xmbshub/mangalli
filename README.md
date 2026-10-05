@@ -4,8 +4,9 @@
 
 # Mangalli POS
 
-**Point of sale for cafés and restaurants.**<br>
-A web dashboard for the owner and an Android cashier app that keeps selling without internet.
+**Point of sale for cafés and restaurants, free for everyone.**<br>
+A web dashboard for the owner and an Android cashier app that keeps selling without internet.<br>
+Made in Indonesia by [1garis Studio](https://1garis.id) for the small businesses that keep our neighbourhoods running.
 
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-1f2328?style=flat-square)](LICENSE)
 [![Self-hosted](https://img.shields.io/badge/self--hosted-free-ea580c?style=flat-square)](#self-host)
@@ -18,6 +19,25 @@ A web dashboard for the owner and an Android cashier app that keeps selling with
 <img src="docs/screenshots/hero.png" alt="Mangalli dashboard and cashier tablet" width="100%">
 
 </div>
+
+## Why we made it free
+
+A warung, a coffee cart or a family restaurant deserves the same tools as a
+big chain: clear sales numbers, a cashier that keeps working offline, receipts
+that look professional. Most of them never get there, because good point-of-sale software
+is priced and built for businesses that already have money and an IT person.
+
+1garis Studio builds software for small businesses every day, and we kept
+seeing the same thing: owners writing sales in a notebook, guessing their
+profit, and losing orders when the internet drops. So we opened Mangalli.
+The full cashier app and dashboard our paying customers use is in this
+repository, under a license that keeps it free and open for good. Anyone can
+run it, learn from it and improve it, with no trial period and no feature
+locked behind a plan.
+
+Our hosted service exists for owners who would rather not run a server. Its
+income pays for the work on Mangalli, and every improvement to the cashier app
+and dashboard lands here too.
 
 ## Why Mangalli
 
@@ -135,11 +155,27 @@ pnpm dev
 Checks: `pnpm typecheck`, `pnpm lint`, `pnpm test`, and `./gradlew testDebugUnitTest`
 in `apps/mangalli-pos/android-pos`.
 
-## Contributing
+## Built with the community
 
-This repository is published from the 1garis Studio monorepo. Issues and pull
-requests are welcome; accepted changes are applied there and appear here with
-the next sync.
+Mangalli gets better when the people who use it tell us what they need.
+
+- **Owners and cashiers:** open an issue with what slows you down at the
+  counter. Plain language is fine, in English or Bahasa Indonesia.
+- **Developers:** pull requests are welcome, from bug fixes to new payment
+  methods and printers. This repository is published from the 1garis Studio
+  monorepo; accepted changes are applied there and appear here with the next
+  sync.
+- **Communities and schools:** you are free to use Mangalli to teach, to help
+  local businesses go digital, or to run it for a group of small outlets.
+  If you do, we would love to hear about it.
+
+### Untuk pelaku usaha di Indonesia
+
+Mangalli gratis dan terbuka untuk semua usaha kecil: warung, kedai kopi,
+gerobak, sampai restoran keluarga. Anda boleh memasangnya di server sendiri
+tanpa biaya apa pun. Bila tidak ingin repot mengurus server, tim 1garis Studio
+siap membantu lewat layanan hosted di [mangalli.web.id](https://mangalli.web.id).
+Pertanyaan dan masukan dalam Bahasa Indonesia selalu kami sambut.
 
 ## License
 
