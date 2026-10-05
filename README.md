@@ -50,7 +50,7 @@ and dashboard lands here too.
 
 | **What you get** | **Self-host** | **Hosted by 1garis Studio** |
 | --- | --- | --- |
-| Cost | Free, forever | Affordable monthly or yearly plan |
+| Cost | Free, forever | [See plans and pricing](https://mangalli.web.id/#harga) |
 | Dashboard, tablet app, reports, branches, promotions | ✓ Every feature | ✓ Every feature |
 | Server, HTTPS and backups | You run them | Managed for you |
 | Updates | Pull and rebuild | Automatic |
