@@ -12,7 +12,7 @@ Made in Indonesia by [1garis Studio](https://1garis.id) for the small businesses
 [![Self-hosted](https://img.shields.io/badge/self--hosted-free-ea580c?style=flat-square)](#self-host)
 [![Hosted by 1garis Studio](https://img.shields.io/badge/hosted-1garis%20Studio-6e7781?style=flat-square)](https://mangalli.web.id)
 
-[Self-host](#self-host) · [Free or hosted](#free-or-hosted) · [Screenshots](#a-look-inside) · [mangalli.web.id](https://mangalli.web.id)
+[Self-host](#self-host) · [Free or hosted](#free-or-hosted) · [Screenshots](#a-look-inside) · [Changelog](CHANGELOG.md) · [mangalli.web.id](https://mangalli.web.id)
 
 <br>
 

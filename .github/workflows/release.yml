@@ -1,0 +1,22 @@
+# Creates a GitHub Release for every version tag, using that version's section
+# of CHANGELOG.md. Tags are pushed by the 1garis Studio sync.
+name: Release
+on:
+  push:
+    tags: ["v*"]
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Publish release notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          awk -v v="$version" '/^## /{p=($2==v); next} p' CHANGELOG.md > notes.md
+          [ -s notes.md ] || echo "Mangalli POS $version." > notes.md
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 \
+            || gh release create "$GITHUB_REF_NAME" --title "Mangalli POS $version" --notes-file notes.md
