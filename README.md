@@ -48,9 +48,9 @@ and dashboard lands here too.
 
 ## Free or hosted
 
-|  | **Self-host** | **Hosted by 1garis Studio** |
+| **What you get** | **Self-host** | **Hosted by 1garis Studio** |
 | --- | --- | --- |
-| Price | Free | Rp99.000 per outlet per month<br><sub>Rp990.000 per year</sub> |
+| Cost | Free, forever | Affordable monthly or yearly plan |
 | Dashboard, tablet app, reports, branches, promotions | ✓ Every feature | ✓ Every feature |
 | Server, HTTPS and backups | You run them | Managed for you |
 | Updates | Pull and rebuild | Automatic |
@@ -59,11 +59,11 @@ and dashboard lands here too.
 | Online payments (Midtrans) | Your own Midtrans keys | Your Midtrans account, set up together |
 | Photo uploads | Your own S3, R2 or MinIO | Included |
 | Daily report email | Your own SMTP | Included |
-| Extra branch | Free | Rp49.000 per month |
-| Digital menu (QR ordering) | Not included | Add-on, Rp79.000 per outlet per month |
-| Support | GitHub issues | WhatsApp |
+| Extra branch | Free | Small monthly add-on |
+| Digital menu (QR ordering) | Not included | Optional add-on |
+| Help | Community, through GitHub issues | Direct help from the 1garis Studio team |
 
-Hosted plans start with a 14-day trial at [mangalli.web.id](https://mangalli.web.id). Need help installing on your own server? 1garis Studio also offers a one-time setup.
+Current plans and a 14-day trial are at [mangalli.web.id](https://mangalli.web.id). Need help installing on your own server? 1garis Studio can set it up for you once.
 
 ## A look inside
 
@@ -91,7 +91,9 @@ Hosted plans start with a 14-day trial at [mangalli.web.id](https://mangalli.web
   </tr>
 </table>
 
-### Digital menu <sub>hosted add-on</sub>
+### Digital menu
+
+*Optional add-on for hosted plans.*
 
 <p align="center"><img src="docs/screenshots/digital-menu.png" alt="Digital menu on a phone" width="560"></p>
 
