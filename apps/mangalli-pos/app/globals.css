@@ -849,10 +849,15 @@ form:has(input[name="role"][value="viewer"]:checked) .approval-pin { display: no
 body.is-sorting { user-select: none; -webkit-user-select: none; cursor: grabbing; }
 /* Bilah aksi lengket (Import) tidak boleh tertutup tombol Ask Eline: tombol naik di atasnya. */
 body:has(.import-bar) .ask-eline-fab { bottom: 92px; }
-/* Kunci data penting (Outlet settings, Team): dialog PIN di atas halaman yang tetap terlihat. */
+/* Kunci data penting (Outlet settings, Team): dialog PIN biasa (latar .dialog-backdrop,
+   tanpa blur) yang hanya menutup area konten, jadi sidebar tetap bisa dipakai pindah menu. */
 .step-up-behind { pointer-events: none; user-select: none; }
-.step-up-backdrop { z-index: 70; background: rgb(24 24 27 / .18); backdrop-filter: blur(8px) saturate(1.1); }
-.dialog.step-up { width: min(100%, 360px); justify-items: center; text-align: center; animation: ask-in .2s ease-out; }
+.step-up-backdrop { left: 244px; }
+@media (min-width: 761px) and (max-width: 1180px) { .step-up-backdrop { left: 104px; } }
+@media (max-width: 760px) { .step-up-backdrop { left: 0; } }
+/* Menu akun dan pemilih cabang keluar dari sidebar ke atas area konten. */
+body:has(.step-up-backdrop) :is(.sidebar, .mobile-header) { z-index: 61; }
+.dialog.step-up { width: min(100%, 360px); justify-items: center; text-align: center; }
 .dialog.step-up p { margin-top: 6px; }
 .step-up-icon { width: 48px; height: 48px; display: grid; place-items: center; border-radius: 50%; background: var(--orange-50); color: var(--orange-600); }
 .step-up-form { width: 100%; display: flex; gap: 8px; }
