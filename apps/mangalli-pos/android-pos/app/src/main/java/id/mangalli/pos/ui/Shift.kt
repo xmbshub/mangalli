@@ -66,8 +66,7 @@ fun ShiftScreen(state: PosUiState, actions: PosActions) {
                     }
                 }
                 DialogFooter(hint = if (state.operations.unsynced > 0) "The report is sent to the dashboard at the next sync." else "The report is on the dashboard.") {
-                    PosButton("Print report", onClick = { actions.printShiftReport(id) }, variant = ButtonVariant.Secondary, icon = Icons.Outlined.Print)
-                    PosButton("Done", onClick = { closedId = null })
+                    PosButton("Print report", onClick = { actions.printShiftReport(id) }, icon = Icons.Outlined.Print)
                 }
             }
         }
@@ -265,7 +264,6 @@ private fun CloseShiftDialog(state: PosUiState, counted: Double, expected: Doubl
             }
         }
         DialogFooter(hint = error, hintTone = Tone.Danger) {
-            PosButton("Recount", onClick = onDismiss, variant = ButtonVariant.Secondary)
             PosButton("Close shift", onClick = { onClose(note, password) { failed -> error = failed } }, enabled = (balanced || note.isNotBlank()) && (!needsApproval || password.length == 6), loading = state.isBusy, haptic = true)
         }
     }
@@ -299,7 +297,6 @@ private fun CashDialog(state: PosUiState, expected: Double, onSave: (String, Dou
             )
         }
         DialogFooter(hint = error ?: "Prints on the shift report.", hintTone = if (error != null) Tone.Danger else Tone.Neutral) {
-            PosButton("Cancel", onClick = onDismiss, variant = ButtonVariant.Secondary)
             PosButton(
                 if (kind == "out") "Record cash out" else "Record cash in",
                 onClick = { onSave(kind, amount, reason, pin) { failed -> error = failed } },

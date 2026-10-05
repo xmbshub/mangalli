@@ -6,7 +6,8 @@ import { useEffect, useRef, useState } from "react";
 import { useActionFormState } from "@/components/interactive";
 
 const LENGTH = 6;
-const KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "back"];
+// "clear" di kiri mengimbangi hapus di kanan (permintaan owner 5 Okt 2026).
+const KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "clear", "0", "back"];
 
 // PIN 6 angka sebagai titik (permintaan owner 5 Okt 2026, meniru layar passcode
 // ponsel; sama dengan PinPad di tablet). Isian asli tetap ada dan tersembunyi di
@@ -79,16 +80,16 @@ export function PinField({ name = "pin", label = "6-digit PIN", keypad = false, 
       {autoSubmit ? <p aria-live="polite" className={state && !state.ok && !pending ? "pin-status error" : "pin-status"}>{pending ? "Checking…" : state && !state.ok ? state.message : ""}</p> : null}
       {keypad ? (
         <div className="pin-keypad">
-          {KEYS.map((key, index) => key === "" ? <span key={index} /> : (
+          {KEYS.map((key) => (
             <button
-              aria-label={key === "back" ? "Delete" : key}
-              className="pin-key"
-              disabled={pending || (key === "back" ? !value : value.length === LENGTH)}
+              aria-label={key === "back" ? "Delete" : key === "clear" ? "Clear PIN" : key}
+              className={key === "clear" ? "pin-key pin-key-text" : "pin-key"}
+              disabled={pending || (key === "back" || key === "clear" ? !value : value.length === LENGTH)}
               key={key}
-              onClick={() => update(key === "back" ? value.slice(0, -1) : value + key)}
+              onClick={() => update(key === "back" ? value.slice(0, -1) : key === "clear" ? "" : value + key)}
               type="button"
             >
-              {key === "back" ? <Delete size={22} /> : key}
+              {key === "back" ? <Delete size={22} /> : key === "clear" ? "Clear" : key}
             </button>
           ))}
         </div>

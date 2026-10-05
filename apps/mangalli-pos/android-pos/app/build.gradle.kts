@@ -15,8 +15,8 @@ android {
         applicationId = "id.mangalli.pos"
         minSdk = 26
         targetSdk = 35
-        versionCode = 28
-        versionName = "0.8.6"
+        versionCode = 30
+        versionName = "0.8.8"
         // Server dashboard tujuan tablet. Self-host: ./gradlew assembleRelease -PmangalliServerUrl=https://pos.example.com
         val serverUrl = providers.gradleProperty("mangalliServerUrl").orElse("https://app.mangalli.web.id").get().trimEnd('/')
         buildConfigField("String", "SERVER_URL", "\"$serverUrl\"")

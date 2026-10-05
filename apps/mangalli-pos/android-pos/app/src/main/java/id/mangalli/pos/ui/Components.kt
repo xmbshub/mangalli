@@ -49,6 +49,7 @@ import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.VisibilityOff
@@ -567,6 +568,10 @@ fun PinPad(
     label: String? = null,
     onComplete: ((String) -> Unit)? = null,
     modifier: Modifier = Modifier,
+    // Baris status di antara titik dan papan (galat atau "Checking…"); tingginya
+    // selalu disediakan supaya papan tidak melompat.
+    status: String? = null,
+    reserveStatus: Boolean = false,
 ) {
     val haptics = LocalHapticFeedback.current
     val shake = remember { androidx.compose.animation.core.Animatable(0f) }
@@ -580,29 +585,34 @@ fun PinPad(
     val press = { key: String ->
         haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
         val next = when {
+            key == "clear" -> ""
             key == "⌫" -> if (rejected) "" else pin.dropLast(1)
             rejected -> key
             else -> (pin + key).take(6)
         }
         onPin(next)
-        if (next.length == 6 && key != "⌫") onComplete?.invoke(next)
+        if (next.length == 6 && key != "⌫" && key != "clear") onComplete?.invoke(next)
     }
-    Column(
-        modifier = modifier.widthIn(max = 340.dp).fillMaxWidth(),
+    // Box selebar wadah supaya papan 340 dp benar-benar di tengah dialog.
+    Box(modifier = modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) { Column(
+        modifier = Modifier.widthIn(max = 340.dp).fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(Pos.Space3),
     ) {
         if (label != null) Text(label, style = PosType.Label, color = Pos.Ink, modifier = Modifier.fillMaxWidth())
         PinDots(pin, error, Modifier.padding(vertical = Pos.Space2).graphicsLayer { translationX = shake.value.dp.toPx() })
-        val rows = listOf(listOf("1", "2", "3"), listOf("4", "5", "6"), listOf("7", "8", "9"), listOf("", "0", "⌫"))
+        if (reserveStatus || status != null) {
+            Text(status ?: "", style = PosType.Caption, color = if (error) Pos.Danger else Pos.Muted, textAlign = TextAlign.Center,
+                maxLines = 1, modifier = Modifier.fillMaxWidth().height(16.dp))
+        }
+        val rows = listOf(listOf("1", "2", "3"), listOf("4", "5", "6"), listOf("7", "8", "9"), listOf("clear", "0", "⌫"))
         Column(verticalArrangement = Arrangement.spacedBy(Pos.Space2)) {
             rows.forEach { row ->
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Pos.Space2)) {
                     row.forEach { key ->
-                        if (key.isEmpty()) {
-                            Spacer(Modifier.weight(1f).height(56.dp))
-                        } else {
-                            val enabled = if (key == "⌫") pin.isNotEmpty() else (pin.length < 6 || rejected)
+                        run {
+                            // Clear di kiri mengimbangi hapus di kanan (permintaan owner 5 Okt 2026).
+                            val enabled = if (key == "⌫" || key == "clear") pin.isNotEmpty() else (pin.length < 6 || rejected)
                             val interaction = remember { MutableInteractionSource() }
                             Box(
                                 modifier = Modifier
@@ -612,16 +622,49 @@ fun PinPad(
                                     .clip(RoundedCornerShape(Pos.Radius))
                                     .background(Pos.SurfaceMuted)
                                     .border(1.dp, Pos.Line, RoundedCornerShape(Pos.Radius))
-                                    .clickable(enabled = enabled, interactionSource = interaction, indication = null, onClickLabel = if (key == "⌫") "Delete" else key) { press(key) },
+                                    .clickable(enabled = enabled, interactionSource = interaction, indication = null, onClickLabel = when (key) { "⌫" -> "Delete"; "clear" -> "Clear PIN"; else -> key }) { press(key) },
                                 contentAlignment = Alignment.Center,
                             ) {
                                 if (key == "⌫") Icon(Icons.Outlined.Backspace, contentDescription = "Delete", tint = if (enabled) Pos.Text else Pos.Subtle, modifier = Modifier.size(22.dp))
+                                else if (key == "clear") Text("Clear", style = PosType.Label, color = if (enabled) Pos.Text else Pos.Subtle)
                                 else Text(key, style = PosType.AmountSmall.copy(fontWeight = PosType.Body.fontWeight), color = if (enabled) Pos.Ink else Pos.Subtle)
                             }
                         }
                     }
                 }
             }
+        }
+    } }
+}
+
+// Dialog PIN satu bentuk di tablet, sama dengan dialog PIN dashboard (permintaan owner
+// 5 Okt 2026): ikon gembok, judul, satu baris, titik, status, papan angka. Tutup hanya
+// lewat X; angka keenam langsung diproses, jadi tidak ada tombol Cancel/Unlock.
+@Composable
+fun PinDialog(
+    title: String,
+    subtitle: String,
+    onDismiss: () -> Unit,
+    onComplete: (String) -> Unit,
+    error: String? = null,
+    busy: Boolean = false,
+    onEdit: () -> Unit = {},
+) {
+    var pin by remember { mutableStateOf("") }
+    PosDialog(onDismiss = onDismiss, width = 400.dp) {
+        Box(Modifier.fillMaxWidth()) {
+            Column(Modifier.fillMaxWidth().padding(Pos.Space6), horizontalAlignment = Alignment.CenterHorizontally) {
+                Box(Modifier.size(48.dp).clip(CircleShape).background(Pos.PrimarySoft), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Outlined.Lock, contentDescription = null, tint = Pos.Primary, modifier = Modifier.size(22.dp))
+                }
+                Spacer(Modifier.height(Pos.Space3))
+                Text(title, style = PosType.Heading, color = Pos.Ink, textAlign = TextAlign.Center)
+                Text(subtitle, style = PosType.BodySmall, color = Pos.Muted, textAlign = TextAlign.Center)
+                Spacer(Modifier.height(Pos.Space3))
+                PinPad(pin, { pin = it; onEdit() }, error = error != null, onComplete = onComplete,
+                    status = error ?: if (busy) "Checking…" else null, reserveStatus = true)
+            }
+            PosIconButton(Icons.Outlined.Close, "Close", onDismiss, outlined = false, modifier = Modifier.align(Alignment.TopEnd).padding(top = Pos.Space4, end = Pos.Space4))
         }
     }
 }
@@ -877,14 +920,8 @@ fun ApprovalFields(
                 Text("Approved by a manager, logged with their name.", style = PosType.Caption, color = Pos.Muted)
             }
             if (entering) {
-                var draft by remember { mutableStateOf("") }
-                PosDialog(onDismiss = { entering = false }, width = 420.dp) {
-                    DialogHeader("Manager PIN", "A manager or owner types their approval PIN.", onClose = { entering = false })
-                    DialogBody {
-                        PinPad(draft, { draft = it }, onComplete = { onPassword(it); entering = false },
-                            modifier = Modifier.align(Alignment.CenterHorizontally))
-                    }
-                }
+                PinDialog("Manager PIN", "A manager or owner approves this.", onDismiss = { entering = false },
+                    onComplete = { onPassword(it); entering = false })
             }
         } else {
             Text("Recorded in the audit log with your name.", style = PosType.Caption, color = Pos.Muted)

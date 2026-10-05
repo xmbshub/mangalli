@@ -512,7 +512,6 @@ private fun VoidDialog(item: CartItemEntity, saved: Int, maximum: Int, initial: 
             }
         }
         DialogFooter(hint = error, hintTone = Tone.Danger) {
-            PosButton("Keep", onClick = onDismiss, variant = ButtonVariant.Secondary)
             PosButton(
                 "Void $count×",
                 onClick = { onVoid(count, reason, pin) { failed -> error = failed } },
@@ -874,7 +873,6 @@ private fun DiscountDialog(state: PosUiState, actions: PosActions, onDismiss: ()
         }
         if (manual) {
             DialogFooter(hint = error, hintTone = Tone.Danger) {
-                PosButton("Cancel", onClick = onDismiss, variant = ButtonVariant.Secondary)
                 PosButton(
                     "Apply discount",
                     onClick = { actions.applyManualDiscount(kind, value, reason, password) { failed -> if (failed == null) onDismiss() else error = failed } },

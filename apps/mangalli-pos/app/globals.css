@@ -884,6 +884,7 @@ body:has(.step-up-backdrop) :is(.sidebar, .mobile-header) { z-index: 61; }
 .pin-status.error { color: var(--danger, #dc2626); }
 .pin-keypad { width: 100%; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .pin-key { height: 52px; border: 1px solid var(--line); border-radius: var(--control-radius); background: var(--line-soft); color: var(--ink); font-size: 20px; font-weight: var(--fw-regular); display: grid; place-items: center; cursor: pointer; transition: background .12s, transform .08s; touch-action: manipulation; }
+.pin-key-text { font-size: var(--fs-sm); font-weight: var(--fw-medium, 500); color: var(--text); }
 .pin-key:hover { background: var(--orange-50); }
 .pin-key:active { transform: scale(.97); }
 .pin-key:disabled { opacity: .45; cursor: default; transform: none; }

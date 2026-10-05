@@ -312,20 +312,10 @@ private fun TabletModeCard(state: PosUiState, actions: PosActions) {
         }
     }
     if (unlocking) {
-        var pin by remember { mutableStateOf("") }
         var error by remember { mutableStateOf<String?>(null) }
-        val unlock = { actions.unlockTablet(pin) { failed -> if (failed == null) unlocking = false else error = failed } }
-        PosDialog(onDismiss = { unlocking = false }, width = 440.dp) {
-            DialogHeader("Unlock this tablet", "A manager or owner types their approval PIN.", onClose = { unlocking = false })
-            DialogBody {
-                // Angka keenam langsung membuka kunci, seperti layar passcode ponsel.
-                PinPad(pin, { pin = it; error = null }, error = error != null, onComplete = { unlock() },
-                    modifier = Modifier.align(Alignment.CenterHorizontally))
-            }
-            DialogFooter(hint = error ?: if (state.isBusy) "Checking…" else null, hintTone = if (error != null) Tone.Danger else Tone.Neutral) {
-                PosButton("Cancel", onClick = { unlocking = false }, variant = ButtonVariant.Secondary)
-            }
-        }
+        PinDialog("Unlock this tablet", "A manager or owner types their approval PIN.", onDismiss = { unlocking = false },
+            onComplete = { pin -> actions.unlockTablet(pin) { failed -> if (failed == null) unlocking = false else error = failed } },
+            error = error, busy = state.isBusy, onEdit = { error = null })
     }
 }
 
@@ -355,7 +345,6 @@ private fun HelpCard(state: PosUiState, actions: PosActions) {
                 if (!state.operations.isOnline) Text("Offline. Connect to send.", style = PosType.Caption, color = Pos.Warning)
             }
             DialogFooter {
-                PosButton("Cancel", onClick = { open = false }, variant = ButtonVariant.Secondary)
                 PosButton("Send report", onClick = { actions.reportProblem(category, message); open = false }, enabled = message.trim().length >= 5 && state.operations.isOnline)
             }
         }

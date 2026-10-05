@@ -65,7 +65,6 @@ fun UpdateDialog(update: AppUpdateState, actions: PosActions) {
             hint = update.error ?: "Tap Install when Android asks. Your data stays.",
             hintTone = if (update.error != null) Tone.Danger else Tone.Neutral,
         ) {
-            if (!update.required) PosButton("Later", onClick = close, variant = ButtonVariant.Secondary, enabled = !downloading)
             PosButton(if (update.error != null) "Try again" else "Update now", onClick = actions::startUpdate, loading = downloading)
         }
     }
