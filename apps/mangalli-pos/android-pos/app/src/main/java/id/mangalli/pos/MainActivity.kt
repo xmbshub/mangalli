@@ -544,7 +544,10 @@ class MainActivity : ComponentActivity() {
                 runCatching { flushCrash() }
             }.message
         }
-        runOnUiThread { syncInProgress = false }
+        // Sinkron yang berhasil membuktikan tablet online; tanpa ini label tetap
+        // "Offline" sampai pemeriksaan per menit berikutnya.
+        val online = result.isSuccess || syncEngine.isOnline()
+        runOnUiThread { syncInProgress = false; isOnline = online }
         refresh()
         if (result.isSuccess) runCatching { checkForUpdate(manual = false) }
         return result

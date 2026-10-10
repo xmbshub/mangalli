@@ -3,6 +3,11 @@
 Version numbers follow the cashier tablet app. Each version also includes the
 dashboard changes released with it.
 
+## 0.8.9
+
+- The tablet shows Online right after a successful sync, instead of staying
+  on Offline until the next connection check.
+
 ## 0.8.8
 
 - One PIN dialog everywhere on the tablet: lock icon, six dots and a large
