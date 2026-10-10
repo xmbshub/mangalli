@@ -3,6 +3,11 @@
 Version numbers follow the cashier tablet app. Each version also includes the
 dashboard changes released with it.
 
+## Unreleased
+
+- Pin the dashboard to Next.js 16.4.0, matching the maintained platform
+  dependency version. The cashier tablet remains at version 0.8.9.
+
 ## 0.8.9
 
 - The tablet shows Online right after a successful sync, instead of staying
