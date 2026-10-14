@@ -24,7 +24,13 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Print
 import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.PrimaryTabRow
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -42,14 +48,15 @@ import id.mangalli.pos.offline.LocalOrderEntity
 import id.mangalli.pos.offline.OfflineOrders
 import kotlinx.coroutines.delay
 
-private data class OrderColumn(val title: String, val statuses: Set<String>, val accent: Color, val empty: String)
+private data class OrderColumn(val title: String, val shortTitle: String, val statuses: Set<String>, val accent: Color, val empty: String)
 
 private val orderColumns = listOf(
-    OrderColumn("Awaiting payment", setOf("pending_payment"), Pos.Warning, "Digital menu orders appear here until paid."),
-    OrderColumn("Preparing", setOf("new", "accepted", "preparing"), Pos.Info, "Paid orders and saved bills go to the kitchen."),
-    OrderColumn("Ready", setOf("ready"), Pos.Success, "Orders ready to serve or pick up."),
+    OrderColumn("Awaiting payment", "Unpaid", setOf("pending_payment"), Pos.Warning, "Digital menu orders appear here until paid."),
+    OrderColumn("Preparing", "Preparing", setOf("new", "accepted", "preparing"), Pos.Info, "Paid orders and saved bills go to the kitchen."),
+    OrderColumn("Ready", "Ready", setOf("ready"), Pos.Success, "Orders ready to serve or pick up."),
 )
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OrdersScreen(state: PosUiState, actions: PosActions) {
     var selectedId by remember { mutableStateOf<String?>(null) }
@@ -61,7 +68,40 @@ fun OrdersScreen(state: PosUiState, actions: PosActions) {
         }
     }
     val active = state.activeOrders
-    Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(Pos.Space4)) {
+    if (LocalCompact.current) {
+        // Ponsel: satu kolom per tab (Material PrimaryTabRow) dengan jumlah pesanan.
+        // Mulai di tab pertama yang berisi pesanan.
+        var tab by rememberSaveable { mutableIntStateOf(orderColumns.indexOfFirst { column -> active.any { it.status in column.statuses } }.coerceAtLeast(0)) }
+        Column(modifier = Modifier.fillMaxSize()) {
+            PrimaryTabRow(selectedTabIndex = tab, containerColor = Pos.Canvas, contentColor = Pos.Ink, divider = { HorizontalLine() }) {
+                orderColumns.forEachIndexed { index, column ->
+                    val count = active.count { it.status in column.statuses }
+                    Tab(
+                        selected = tab == index,
+                        onClick = { tab = index },
+                        selectedContentColor = Pos.PrimaryPressed,
+                        unselectedContentColor = Pos.Muted,
+                        text = { Text(if (count > 0) "${column.shortTitle} · $count" else column.shortTitle, style = PosType.Label, maxLines = 1) },
+                    )
+                }
+            }
+            val column = orderColumns[tab]
+            val orders = active.filter { it.status in column.statuses }.sortedBy { it.createdAtMillis }
+            // Tarik ke bawah untuk mengecek pesanan menu digital baru (selain ikon di TopAppBar).
+            var refreshing by remember { mutableStateOf(false) }
+            LaunchedEffect(refreshing) {
+                if (refreshing) { actions.refreshOrders(); delay(900); refreshing = false }
+            }
+            PullToRefreshBox(isRefreshing = refreshing, onRefresh = { refreshing = true }, modifier = Modifier.fillMaxSize()) {
+                if (orders.isEmpty()) Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) { EmptyState(column.empty, modifier = Modifier.fillMaxWidth().padding(top = 160.dp)) }
+                else LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(vertical = Pos.Space3), verticalArrangement = Arrangement.spacedBy(Pos.Space2)) {
+                    items(orders, key = { it.localUuid }) { order ->
+                        OrderCard(order, now, onClick = { selectedId = order.localUuid }, modifier = Modifier.animateItem())
+                    }
+                }
+            }
+        }
+    } else Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(Pos.Space4)) {
         ScreenHeader(
             "Orders",
             "${active.size} active · ${if (state.operations.isOnline) "digital menu checked every minute" else "offline, digital menu orders arrive when back online"}",
@@ -140,13 +180,13 @@ fun OrderDetailDialog(order: LocalOrderEntity, state: PosUiState, actions: PosAc
         )
         AnimatedContent(targetState = step, transitionSpec = { fadeIn(tween(120)) togetherWith ExitTransition.None }, label = "order-step", modifier = Modifier.weight(1f, fill = false)) { current ->
             when (current) {
-                DetailStep.Summary -> OrderSummary(order)
+                DetailStep.Summary -> OrderSummary(order, state.cashierName(order))
                 DetailStep.Payment -> PaymentPanel(
                     total = order.total,
                     busy = state.isBusy,
                     confirmLabel = if (order.status == "pending_payment") "Receive" else "Pay & close",
                     onConfirm = { input -> actions.settleOrder(order.localUuid, input); onDismiss() },
-                    modifier = Modifier.fillMaxWidth().fillMaxHeight().padding(Pos.Space6),
+                    modifier = Modifier.fillMaxWidth().fillMaxHeight().padding(dialogInset()),
                     qris = state.outlet.qrisFor(order.total),
                     onPrintQris = if (state.outlet.qrisReady) ({ done -> actions.printQris(order.total, order.code(), order.contextLabel(), done) }) else null,
                 )
@@ -167,7 +207,7 @@ fun OrderDetailDialog(order: LocalOrderEntity, state: PosUiState, actions: PosAc
             }
         }
         if (step == DetailStep.Summary) {
-            DialogFooter(hint = if (!order.dirty) "Synced to the dashboard" else "Saved on this tablet · syncs automatically") {
+            DialogFooter(hint = if (!order.dirty) "Synced to the dashboard" else "Saved on this ${deviceNoun()} · syncs automatically") {
                 if (!finished) PosButton("Cancel order", onClick = { step = DetailStep.Cancel }, variant = ButtonVariant.DangerSoft)
                 if (paid) PosButton("Receipt", onClick = { actions.printOrderReceipt(order.localUuid) }, variant = ButtonVariant.Secondary, icon = Icons.Outlined.Print)
                 if (order.source == "pos" && !paid && !finished) {
@@ -186,9 +226,9 @@ fun OrderDetailDialog(order: LocalOrderEntity, state: PosUiState, actions: PosAc
 }
 
 @Composable
-fun OrderSummary(order: LocalOrderEntity) {
+fun OrderSummary(order: LocalOrderEntity, cashier: String?) {
     val items = OfflineOrders.itemsFromJson(order.itemsJson)
-    Column(modifier = Modifier.verticalScroll(rememberScrollState()).padding(Pos.Space6), verticalArrangement = Arrangement.spacedBy(Pos.Space3)) {
+    Column(modifier = Modifier.verticalScroll(rememberScrollState()).padding(dialogInset()), verticalArrangement = Arrangement.spacedBy(Pos.Space3)) {
         items.forEach { item ->
             Row {
                 Text("${item.quantity}×", style = PosType.Body, color = Pos.Muted, modifier = Modifier.width(36.dp))
@@ -206,7 +246,9 @@ fun OrderSummary(order: LocalOrderEntity) {
         if (order.tax > 0) KeyValue("Tax", formatPrice(order.tax))
         KeyValue("Total", formatPrice(order.total), emphasize = true)
         KeyValue("Payment", if (order.paymentStatus == "completed") "${paymentMethodLabel(order.paymentMethod)} · paid ${clockLabel(order.paidAtMillis)}" else "Unpaid", valueColor = if (order.paymentStatus == "completed") Pos.Success else Pos.Warning)
-        order.paymentNotes?.takeIf { it.isNotBlank() }?.let { KeyValue("Payment note", it) }
+        // Catatan yang hanya mengulang cara bayar ("QRIS") tidak ditampilkan lagi.
+        order.paymentNotes?.takeIf { it.isNotBlank() && !it.equals(paymentMethodLabel(order.paymentMethod), ignoreCase = true) }?.let { KeyValue("Payment note", it) }
+        cashier?.let { KeyValue("Cashier", it) }
         order.cancelReason?.takeIf { order.status == "cancelled" }?.let { KeyValue("Cancel reason", it, valueColor = Pos.Danger) }
     }
 }
@@ -214,7 +256,7 @@ fun OrderSummary(order: LocalOrderEntity) {
 @Composable
 private fun CancelStep(order: LocalOrderEntity, needsApproval: Boolean, reason: String, onReason: (String) -> Unit, pin: String, onPin: (String) -> Unit, error: String?) {
     val paid = order.paymentStatus == "completed"
-    Column(modifier = Modifier.verticalScroll(rememberScrollState()).padding(Pos.Space6), verticalArrangement = Arrangement.spacedBy(Pos.Space4)) {
+    Column(modifier = Modifier.verticalScroll(rememberScrollState()).padding(dialogInset()), verticalArrangement = Arrangement.spacedBy(Pos.Space4)) {
         InfoBanner(
             if (paid) "This order is paid (${formatPrice(order.total)}, ${paymentMethodLabel(order.paymentMethod)}). Cancelling it records a refund: hand the money back to the customer."
             else "Removed from the kitchen.",

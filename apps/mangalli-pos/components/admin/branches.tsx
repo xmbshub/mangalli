@@ -40,7 +40,7 @@ export async function BranchesSection({ operator, range, creating, created }: { 
         <Kpi label="Profit" value={!total.net ? formatIdr(0) : rows.some((row) => row.data.hasCosts) ? formatIdr(total.profit) : "—"} hint={!total.net ? "No sales in this period" : rows.some((row) => row.data.hasCosts) ? "Branches with product costs" : "Add product costs to see it"} />
         <Panel className="span-12" title="Compare branches" description="Sales exclude tax">
           {rows.length ? (
-            <div className="table-wrap"><table>
+            <div className="table-wrap cards"><table>
               <thead><tr><th>Branch</th><th className="right">Sales</th><th className="right">Orders</th><th className="right hide-sm">Average</th><th className="right hide-sm">Profit</th><th className="right">Change</th><th /></tr></thead>
               <tbody>{rows.map(({ outlet, data }) => {
                 const delta = change(data.money.net, data.prev.net);
@@ -49,12 +49,12 @@ export async function BranchesSection({ operator, range, creating, created }: { 
                   <tr key={outlet.outlet_key}>
                     <td><strong>{outlet.name}</strong><span className="cell-sub">{outlet.is_main ? "Main branch · menu source" : outlet.address ?? outlet.outlet_key}</span>
                       <div className="meter"><span style={{ width: `${total.net ? (data.money.net / total.net) * 100 : 0}%` }} /></div></td>
-                    <td className="right num">{formatIdr(data.money.net)}</td>
-                    <td className="right num">{data.money.orders}</td>
+                    <td className="right num end">{formatIdr(data.money.net)}</td>
+                    <td className="right num" data-label="Orders">{data.money.orders}</td>
                     <td className="right num hide-sm">{formatIdr(data.money.orders ? data.money.net / data.money.orders : 0)}</td>
                     <td className="right num hide-sm">{data.hasCosts ? formatIdr(data.netProfit) : "—"}</td>
-                    <td className={`right num${delta === null ? " muted" : ""}`}>{delta === null ? "—" : <span className={`delta ${delta >= 0 ? "up" : "down"}`}>{delta >= 0 ? <ArrowUpRight size={13} /> : <ArrowDownRight size={13} />}{Math.abs(delta)}%</span>}</td>
-                    <td className="right">{current ? <span className="badge tone-warning">Current</span> : (
+                    <td data-label="Change" className={`right num${delta === null ? " muted" : ""}`}>{delta === null ? "—" : <span className={`delta ${delta >= 0 ? "up" : "down"}`}>{delta >= 0 ? <ArrowUpRight size={13} /> : <ArrowDownRight size={13} />}{Math.abs(delta)}%</span>}</td>
+                    <td className="right row-end">{current ? <span className="badge tone-warning">Current</span> : (
                       <form action={switchOutletAction}><input name="outlet" type="hidden" value={outlet.outlet_key} /><button className="button small" type="submit">Open <ArrowRight size={14} /></button></form>
                     )}</td>
                   </tr>

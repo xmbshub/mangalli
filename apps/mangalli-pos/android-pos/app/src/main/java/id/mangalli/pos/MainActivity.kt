@@ -9,6 +9,7 @@ import android.content.pm.PackageInstaller
 import android.net.Uri
 import android.media.AudioAttributes
 import android.media.SoundPool
+import android.content.pm.ActivityInfo
 import android.content.pm.ApplicationInfo
 import android.os.Build
 import android.os.Bundle
@@ -36,6 +37,8 @@ import id.mangalli.pos.offline.CatalogProductEntity
 import id.mangalli.pos.offline.LocalOrderEntity
 import id.mangalli.pos.offline.LocalShiftEntity
 import id.mangalli.pos.offline.OfflineOrders
+import id.mangalli.pos.offline.OpeningHour
+import id.mangalli.pos.offline.OpeningHours
 import id.mangalli.pos.offline.Qris
 import id.mangalli.pos.offline.StockRules
 import id.mangalli.pos.offline.DiscountSpec
@@ -165,10 +168,15 @@ class MainActivity : ComponentActivity() {
     private var discountSpec by mutableStateOf<DiscountSpec?>(null)
     private var promotions by mutableStateOf<List<Promo>>(emptyList())
     private var outletZone: java.time.ZoneId = java.time.ZoneId.systemDefault()
+    // "phone" atau "tablet" untuk pesan yang menyebut perangkat ini (sama dengan mode ponsel UI).
+    private val device: String get() = if (resources.configuration.smallestScreenWidthDp < 600) "phone" else "tablet"
+    private var openingHours by mutableStateOf<List<OpeningHour>>(emptyList())
 
     private var localOrders by mutableStateOf<List<LocalOrderEntity>>(emptyList())
     private var history by mutableStateOf<List<LocalOrderEntity>>(emptyList())
     private var shifts by mutableStateOf<List<LocalShiftEntity>>(emptyList())
+    private var shiftSummaries by mutableStateOf<Map<String, ShiftSummary>>(emptyMap())
+    private var openShiftOrders by mutableStateOf<List<LocalOrderEntity>>(emptyList())
     private var openShift by mutableStateOf<LocalShiftEntity?>(null)
     private var shiftSummary by mutableStateOf<ShiftSummary?>(null)
     private var isOnline by mutableStateOf(false)
@@ -215,6 +223,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Tablet tetap mendatar seperti sebelumnya; ponsel (sisi terpendek < 600 dp) tegak,
+        // sama dengan batas mode ponsel di PosApp.
+        requestedOrientation = if (resources.configuration.smallestScreenWidthDp >= 600) ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE else ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
         orderChime = soundPool.load(this, R.raw.order_chime, 1)
         tokenStore = SecureTokenStore(this)
         database = PosDatabase.get(this)
@@ -291,6 +302,19 @@ class MainActivity : ComponentActivity() {
         tickerHandler.postDelayed(pinWatcher, 3_000)
     }
 
+    // Sakelar "Lock to Mangalli" baru menyala setelah Android benar-benar mengunci
+    // (kasir menekan "Got it"). "No thanks" tidak mengubah apa pun (insiden 14 Okt 2026:
+    // sakelar tampil terkunci sampai 20 detik setelah permintaan ditolak).
+    private val pinConfirm = object : Runnable {
+        override fun run() {
+            if (isPinned()) {
+                saveTabletMode(locked = true)
+                tickerHandler.removeCallbacks(pinWatcher)
+                tickerHandler.postDelayed(pinWatcher, 3_000)
+            } else if (System.currentTimeMillis() - pinRequestedAt < 30_000) tickerHandler.postDelayed(this, 400)
+        }
+    }
+
     private val pinWatcher = object : Runnable {
         override fun run() {
             if (!tabletMode.locked) return
@@ -340,6 +364,8 @@ class MainActivity : ComponentActivity() {
             menuUrl = outletMenuUrl,
             qrisPayload = outletQris?.takeIf { Qris.merchantName(it) != null },
             customAmountMax = customAmountMax,
+            openingHours = openingHours,
+            zone = outletZone,
         ),
         products = products,
         stockLeft = stockLeft,
@@ -348,6 +374,8 @@ class MainActivity : ComponentActivity() {
         orders = localOrders,
         history = history,
         shifts = shifts,
+        shiftSummaries = shiftSummaries,
+        openShiftOrders = openShiftOrders,
         operations = OperationsState(
             shift = openShift,
             summary = shiftSummary,
@@ -458,7 +486,11 @@ class MainActivity : ComponentActivity() {
         val nextHistory = dao.ordersSince(now - HISTORY_WINDOW_MILLIS)
         val nextShifts = dao.recentShifts(30)
         val nextShift = dao.openShift()
-        val nextSummary = nextShift?.let { shiftSummaryOf(it, dao.shiftOrders(it.localUuid)) }
+        val nextOpenShiftOrders = nextShift?.let { dao.shiftOrders(it.localUuid) } ?: emptyList()
+        val nextSummary = nextShift?.let { shiftSummaryOf(it, nextOpenShiftOrders) }
+        // Ringkasan tiap shift dari SEMUA pesanannya, bukan riwayat 7 hari: shift yang
+        // lupa ditutup berhari-hari tampil dengan selisih kas salah (insiden 14 Okt 2026).
+        val nextShiftSummaries = nextShifts.associate { it.localUuid to shiftSummaryOf(it, dao.shiftOrders(it.localUuid)) }
         val nextUnsynced = dao.dirtyOrderCount() + dao.dirtyShifts().size + dao.pendingSyncCount()
         val nextStaff = credentials.knownStaff()
         val registered = !stored(KEY_DEVICE_TOKEN).isNullOrBlank()
@@ -470,6 +502,8 @@ class MainActivity : ComponentActivity() {
             localOrders = nextOrders
             history = nextHistory
             shifts = nextShifts
+            shiftSummaries = nextShiftSummaries
+            openShiftOrders = nextOpenShiftOrders
             openShift = nextShift
             shiftSummary = nextSummary
             unsyncedCount = nextUnsynced
@@ -616,6 +650,7 @@ class MainActivity : ComponentActivity() {
         tokenStore.save(KEY_PROMOTIONS, snapshot.promotionsJson)
         credentials.saveApprovers(snapshot.approversJson)
         tokenStore.save(KEY_TIMEZONE, snapshot.timezone)
+        tokenStore.save(KEY_OPENING_HOURS, snapshot.openingHoursJson)
         tokenStore.save(KEY_TABLES, JSONArray().also { rows ->
             snapshot.tables.forEach { rows.put(JSONObject().put("code", it.code).put("label", it.label).put("area", it.area)) }
         }.toString())
@@ -637,6 +672,7 @@ class MainActivity : ComponentActivity() {
         taxRate = OfflineOrders.taxRate
         promotions = PromoRules.parse(stored(KEY_PROMOTIONS))
         outletZone = runCatching { java.time.ZoneId.of(stored(KEY_TIMEZONE) ?: "") }.getOrDefault(java.time.ZoneId.systemDefault())
+        openingHours = OpeningHours.parse(stored(KEY_OPENING_HOURS))
         outletTables = runCatching {
             val rows = JSONArray(stored(KEY_TABLES) ?: "[]")
             (0 until rows.length()).map { rows.getJSONObject(it).let { row -> TableSnapshot(row.optString("code"), row.optString("label"), row.optString("area")) } }
@@ -654,7 +690,7 @@ class MainActivity : ComponentActivity() {
     // Dicek offline; 5 PIN salah mengunci persetujuan 1 menit.
     private fun approverFor(staff: OfflineStaff, pin: String): OfflineStaff {
         if (staff.role in MANAGER_ROLES) return staff
-        check(credentials.hasApprovalPins()) { "No approval PIN on this tablet yet. The owner sets one in the dashboard under Team, then tap Sync now." }
+        check(credentials.hasApprovalPins()) { "No approval PIN on this $device yet. The owner sets one in the dashboard under Team, then tap Sync now." }
         val now = System.currentTimeMillis()
         check(now >= pinLockedUntil) { "Too many wrong PINs. Try again in a minute." }
         val approver = credentials.approverByPin(pin)
@@ -906,6 +942,7 @@ class MainActivity : ComponentActivity() {
         discountLabel = DiscountSpec.fromJson(order.discountJson)?.label,
         qrisPayload = if (withQris) qrisFor(order.total) else null,
         qrisMerchant = if (withQris) Qris.merchantName(outletQris) else null,
+        cashierName = knownStaff.firstOrNull { it.userId == order.staffUserId }?.name ?: currentStaff?.name,
     )
 
     private fun logoRaster(): ByteArray? {
@@ -1044,7 +1081,7 @@ class MainActivity : ComponentActivity() {
             }
             if (!syncEngine.isOnline()) {
                 val known = credentials.knownStaff().any { it.email == normalizedEmail }
-                error(if (known) "Wrong password." else "This tablet is offline. The first sign-in needs internet.")
+                error(if (known) "Wrong password." else "This $device is offline. The first sign-in needs internet.")
             }
             val login = runCatching { api().deviceLogin(outletKey = outletKey.trim(), email = normalizedEmail, password = password, deviceKey = deviceKey()) }
                 .getOrElse { failure ->
@@ -1058,7 +1095,7 @@ class MainActivity : ComponentActivity() {
                     )
                 }
             val previousOutlet = stored(KEY_OUTLET_KEY)
-            check(previousOutlet == null || previousOutlet == login.outletKey) { "This tablet is connected to $previousOutlet. Disconnect it in Settings first." }
+            check(previousOutlet == null || previousOutlet == login.outletKey) { "This $device is connected to $previousOutlet. Disconnect it in Settings first." }
             tokenStore.save(KEY_DEVICE_TOKEN, login.deviceToken)
             tokenStore.save(KEY_STAFF_TOKEN, login.staffToken)
             tokenStore.save(KEY_OUTLET_KEY, login.outletKey)
@@ -1087,14 +1124,14 @@ class MainActivity : ComponentActivity() {
             val staff = currentStaff
             check(staff == null || staff.email.equals(email, ignoreCase = true) || staff.role in MANAGER_ROLES) { "Only an owner or manager can remove another cashier." }
             credentials.forget(email)
-            showToast("Removed from this tablet.")
+            showToast("Removed from this $device.")
         }
 
         // Putus hubungan: tablet kembali ke layar hubungkan. Hanya owner/manager;
         // data yang belum tersinkron ikut terhapus (sudah diperingatkan di UI).
         override fun disconnectDevice() = task("Disconnecting") {
             val dao = database.posDao()
-            check(requireStaff().role in setOf("owner", "manager")) { "Only an owner or manager can disconnect this tablet." }
+            check(requireStaff().role in setOf("owner", "manager")) { "Only an owner or manager can disconnect this $device." }
             dao.clearCart()
             dao.clearProducts()
             dao.clearSavedBills()
@@ -1108,7 +1145,7 @@ class MainActivity : ComponentActivity() {
                 loadStoredOutlet()
                 screen = Screen.Menu
             }
-            "Tablet disconnected."
+            "${device.replaceFirstChar { it.uppercase() }} disconnected."
         }
 
         override fun setServer(url: String) {
@@ -1277,7 +1314,7 @@ class MainActivity : ComponentActivity() {
         }
 
         override fun printQris(amount: Double, reference: String, context: String, onResult: ((String?) -> Unit)?) = task("Printing QRIS", onResult = onResult) {
-            val payload = qrisFor(amount) ?: error("Upload the store QRIS in the dashboard (Outlet settings), then sync this tablet.")
+            val payload = qrisFor(amount) ?: error("Upload the store QRIS in the dashboard (Outlet settings), then sync this $device.")
             val slip = SalePrintData(
                 outletName = outletName, outletAddress = outletAddress, outletPhone = outletPhone, outletLogoRaster = logoRaster(),
                 reference = reference, customerName = "", orderContext = context, items = emptyList(),
@@ -1311,8 +1348,10 @@ class MainActivity : ComponentActivity() {
         }
 
         override fun lockTablet() {
-            saveTabletMode(locked = true)
-            requestPin()
+            pinRequestedAt = System.currentTimeMillis()
+            runCatching { startLockTask() }
+            tickerHandler.removeCallbacks(pinConfirm)
+            tickerHandler.postDelayed(pinConfirm, 400)
         }
 
         // Kasir butuh PIN manager untuk membuka kunci; owner/manager langsung.
@@ -1322,7 +1361,7 @@ class MainActivity : ComponentActivity() {
                 saveTabletMode(locked = false)
                 runCatching { stopLockTask() }
             }
-            "Tablet unlocked. Home and other apps work again."
+            "${device.replaceFirstChar { it.uppercase() }} unlocked. Home and other apps work again."
         }
 
         // "New order" selalu kembali ke layar Menu, juga setelah membayar dari Orders.
@@ -1345,7 +1384,7 @@ class MainActivity : ComponentActivity() {
 
         override fun updateOrderStatus(localUuid: String, status: String, approvalPassword: String, reason: String, onResult: ((String?) -> Unit)?) = task("Updating order", onResult = onResult) {
             val dao = database.posDao()
-            val entity = dao.order(localUuid) ?: error("Order not found on this tablet.")
+            val entity = dao.order(localUuid) ?: error("Order not found on this $device.")
             val staff = requireStaff()
             val cancelling = status == "cancelled"
             val paid = entity.paymentStatus == "completed"
@@ -1375,7 +1414,7 @@ class MainActivity : ComponentActivity() {
         // atau open bill yang siap ditutup.
         override fun settleOrder(localUuid: String, input: PaymentInput) = task("Recording payment") {
             val dao = database.posDao()
-            val entity = dao.order(localUuid) ?: error("Order not found on this tablet.")
+            val entity = dao.order(localUuid) ?: error("Order not found on this $device.")
             val shift = requireOpenShift()
             if (input.method == PAYMENT_CASH) check(input.tendered >= entity.total) { "Cash received is less than the total." }
             val now = System.currentTimeMillis()
@@ -1408,7 +1447,7 @@ class MainActivity : ComponentActivity() {
 
         // Cetak ulang dari Orders/History selalu bertanda COPY.
         override fun printOrderReceipt(localUuid: String) = task("Printing receipt") {
-            val order = database.posDao().order(localUuid) ?: error("Order not found on this tablet.")
+            val order = database.posDao().order(localUuid) ?: error("Order not found on this $device.")
             print(PrinterRole.RECEIPT, EscPos58mm.receipt(salePrintData(order, paymentMethodLabel(order.paymentMethod)).copy(isCopy = true)), "Receipt")
         }
 
@@ -1500,7 +1539,7 @@ class MainActivity : ComponentActivity() {
 
         override fun printShiftReport(localUuid: String) = task("Printing report") {
             val dao = database.posDao()
-            val shift = dao.recentShifts(60).firstOrNull { it.localUuid == localUuid } ?: error("Shift not found on this tablet.")
+            val shift = dao.recentShifts(60).firstOrNull { it.localUuid == localUuid } ?: error("Shift not found on this $device.")
             val summary = shiftSummaryOf(shift, dao.shiftOrders(shift.localUuid))
             print(
                 PrinterRole.RECEIPT,
@@ -1552,6 +1591,7 @@ class MainActivity : ComponentActivity() {
         private const val KEY_PROMOTIONS = "promotions"
         private const val TABLET_PREFS = "tablet_mode"
         private const val KEY_TIMEZONE = "outlet_timezone"
+        private const val KEY_OPENING_HOURS = "opening_hours"
         private const val TICK_MILLIS = 60_000L
         private const val MENU_POLL_MILLIS = 15_000L
         private const val RECENT_WINDOW_MILLIS = 3L * 24 * 60 * 60 * 1000

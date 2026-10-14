@@ -59,15 +59,15 @@ export async function UsersSection({ operator, edit, creating }: { operator: Ope
       ) : null}
       <Panel>
         {users.length ? (
-          <div className="table-wrap"><table>
+          <div className="table-wrap cards"><table>
             <thead><tr><th>Member</th><th>Role</th><th className="hide-sm">Approval PIN</th><th>Active</th><th /></tr></thead>
             <tbody>{users.map((user) => (
               <tr key={user.id}>
                 <td><div className="cell-main"><span className="avatar">{user.name.slice(0, 1).toUpperCase()}</span><span><Link href={`/admin/users?edit=${user.id}`} scroll={false}><strong>{user.name}</strong></Link><span className="cell-sub">{user.email}{user.id === operator.id ? " · you" : ""}{user.is_home ? (user.access.length ? ` · also ${user.access.length} other ${user.access.length === 1 ? "branch" : "branches"}` : "") : ` · from ${user.home_name}`}</span></span></div></td>
-                <td><Badge value={user.pos_role} /></td>
+                <td className="end"><Badge value={user.pos_role} /></td>
                 <td className="hide-sm">{approver(user) ? (user.has_pin ? <span className="badge tone-success">Set</span> : <span className="badge tone-warning">Not set</span>) : <span className="muted">—</span>}</td>
-                <td>{user.id === operator.id || !user.is_home ? <Badge value={user.is_active ? "active" : "inactive"} /> : <ToggleSwitch action={setUserActiveAction} checked={user.is_active} confirmOff={`Deactivate ${user.name}? They are signed out on the dashboard and every tablet.`} confirmOffLabel="Deactivate" fields={{ id: user.id, active: String(!user.is_active) }} label={user.is_active ? `Deactivate ${user.name}` : `Activate ${user.name}`} />}</td>
-                <td className="right"><Link className="button small ghost" href={`/admin/users?edit=${user.id}`} scroll={false}>Edit</Link></td>
+                <td className="end">{user.id === operator.id || !user.is_home ? <Badge value={user.is_active ? "active" : "inactive"} /> : <ToggleSwitch action={setUserActiveAction} checked={user.is_active} confirmOff={`Deactivate ${user.name}? They are signed out on the dashboard and every tablet.`} confirmOffLabel="Deactivate" fields={{ id: user.id, active: String(!user.is_active) }} label={user.is_active ? `Deactivate ${user.name}` : `Activate ${user.name}`} />}</td>
+                <td className="right hide-sm"><Link className="button small ghost" href={`/admin/users?edit=${user.id}`} scroll={false}>Edit</Link></td>
               </tr>
             ))}</tbody>
           </table></div>
@@ -159,7 +159,7 @@ export async function ShiftsSection({ operator, opening, page }: { operator: Ope
         ))}
         <Panel className="span-12" title="History" description="Open shifts first, then newest">
           {shifts.length ? (
-            <div className="table-wrap"><table>
+            <div className="table-wrap cards"><table>
               <thead><tr><th>Date</th><th className="hide-sm">Opened / closed by</th><th className="right">Orders</th><th className="right hide-sm">Cash</th><th className="right hide-sm">Digital</th><th className="right">Expected</th><th className="right">Counted</th><th className="right">Difference</th><th>Status</th></tr></thead>
               <tbody>{shifts.map((shift) => {
                 const difference = Number(shift.cash_difference);
@@ -167,13 +167,13 @@ export async function ShiftsSection({ operator, opening, page }: { operator: Ope
                   <tr key={shift.id}>
                     <td className="nowrap">{formatDate(shift.business_date)}<span className="cell-sub">{formatDateTime(shift.opened_at)}</span>{shift.notes ? <span className="cell-sub clamp-1" title={shift.notes}>Note: {shift.notes}</span> : null}</td>
                     <td className="hide-sm">{shift.opened_by_name ?? "—"}<span className="cell-sub">{shift.closed_by_name && shift.closed_by_name !== shift.opened_by_name ? `Closed by ${shift.closed_by_name} · ` : ""}{shift.from_tablet ? "Tablet" : "Dashboard"}</span></td>
-                    <td className="right num">{shift.order_count}</td>
+                    <td className="right num" data-label="Orders">{shift.order_count}</td>
                     <td className="right num hide-sm">{formatIdr(Number(shift.cash_payment_total))}</td>
                     <td className="right num hide-sm">{formatIdr(Number(shift.digital_payment_total))}</td>
-                    <td className="right num">{formatIdr(Number(shift.expected_cash))}{Number(shift.cash_out) || Number(shift.cash_in) ? <span className="cell-sub">{[Number(shift.cash_out) ? `Cash out −${formatIdr(Number(shift.cash_out))}` : "", Number(shift.cash_in) ? `Cash in +${formatIdr(Number(shift.cash_in))}` : ""].filter(Boolean).join(" · ")}</span> : null}</td>
-                    <td className="right num">{shift.actual_cash === null ? "—" : formatIdr(Number(shift.actual_cash))}</td>
-                    <td className={`right num ${shift.status === "closed" && difference < 0 ? "kpi-hint down" : ""}`}>{shift.status === "closed" ? `${difference > 0 ? "+" : ""}${formatIdr(difference)}` : "—"}</td>
-                    <td><Badge value={shift.status} /></td>
+                    <td className="right num" data-label="Expected">{formatIdr(Number(shift.expected_cash))}{Number(shift.cash_out) || Number(shift.cash_in) ? <span className="cell-sub">{[Number(shift.cash_out) ? `Cash out −${formatIdr(Number(shift.cash_out))}` : "", Number(shift.cash_in) ? `Cash in +${formatIdr(Number(shift.cash_in))}` : ""].filter(Boolean).join(" · ")}</span> : null}</td>
+                    <td className="right num" data-label="Counted">{shift.actual_cash === null ? "—" : formatIdr(Number(shift.actual_cash))}</td>
+                    <td data-label="Difference" className={`right num ${shift.status === "closed" && difference < 0 ? "kpi-hint down" : ""}`}>{shift.status === "closed" ? `${difference > 0 ? "+" : ""}${formatIdr(difference)}` : "—"}</td>
+                    <td className="end"><Badge value={shift.status} /></td>
                   </tr>
                 );
               })}</tbody>
@@ -215,11 +215,11 @@ export async function AuditSection({ operator, kind, search, page }: { operator:
       </FilterForm>
       <Panel>
         {rows.length ? (
-          <div className="table-wrap"><table>
+          <div className="table-wrap cards"><table>
             <thead><tr><th>Time</th><th>Action</th><th>Detail</th><th>By</th></tr></thead>
             <tbody>{rows.map((row) => (
               <tr key={row.id}>
-                <td className="num nowrap">{formatDateTime(row.created_at)}</td>
+                <td className="num nowrap end muted">{formatDateTime(row.created_at)}</td>
                 <td className="nowrap">{riskyActions.has(row.action) || Math.abs(Number(row.difference ?? 0)) >= 1 ? <span className="badge tone-warning">{actionLabel(row.action)}</span> : actionLabel(row.action)}</td>
                 <td>{row.summary || "—"}{row.reason ? <span className="cell-sub">Reason: {row.reason}</span> : null}</td>
                 <td className="nowrap">{row.actor_name || "System"}{row.approver_name ? <span className="cell-sub">Approved by {row.approver_name}</span> : null}</td>

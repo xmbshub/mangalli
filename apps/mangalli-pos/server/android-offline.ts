@@ -133,6 +133,8 @@ async function upsertOrder(client: PoolClient, device: Device, staffUserId: stri
   const customer = input.customerName || (input.orderMode === "dinein" ? `Table ${table ?? "-"}` : "Walk-in Customer");
   const status = input.status;
   const cancelled = status === "cancelled";
+  // Kasir yang mengambil pesanan di tablet (dipakai detail pesanan, ekspor, dan audit).
+  const cashier = await outletUser(client, device.outlet_key, input.staffUserId);
 
   const existing = await client.query<{ id: string; order_code: string; shift_id: string | null; restaurant_status: string; amount: string | null }>(
     `SELECT o.id::text, o.order_code, o.shift_id::text, o.restaurant_status, p.amount::text
@@ -156,11 +158,11 @@ async function upsertOrder(client: PoolClient, device: Device, staffUserId: stri
          table_label=$6, pickup_name=$7, notes=$8, status=$9, restaurant_status=$10,
          void_reason=CASE WHEN $11::boolean THEN coalesce($12, void_reason) ELSE void_reason END,
          voided_at=CASE WHEN $11::boolean THEN coalesce(voided_at, now()) ELSE voided_at END,
-         discount_amount=$14, discount_label=$15, promotion_id=$16, updated_at=now()
+         discount_amount=$14, discount_label=$15, promotion_id=$16, cashier_id=coalesce(cashier_id, $17), updated_at=now()
        WHERE id=$13`,
       [shift, input.businessDate, customer, input.orderMode, table ?? 0, tableLabel,
         input.orderMode === "takeaway" ? customer : null, input.notes ?? null, legacyStatus(status), status,
-        cancelled, input.cancelReason ?? null, orderId, discountAmount, discountLabel, promotionId],
+        cancelled, input.cancelReason ?? null, orderId, discountAmount, discountLabel, promotionId, cashier],
     );
     await client.query("DELETE FROM order_items WHERE order_id=$1", [orderId]);
   } else {
@@ -168,12 +170,12 @@ async function upsertOrder(client: PoolClient, device: Device, staffUserId: stri
     const created = await client.query<{ id: string }>(
       `INSERT INTO orders(outlet_key, shift_id, order_code, public_token, business_date, customer_name, order_mode, table_number,
          table_label, pickup_name, notes, status, restaurant_status, void_reason, voided_at, device_id, local_uuid, created_at, updated_at,
-         discount_amount, discount_label, promotion_id)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,now(),$19,$20,$21) RETURNING id::text`,
+         discount_amount, discount_label, promotion_id, cashier_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,now(),$19,$20,$21,$22) RETURNING id::text`,
       [device.outlet_key, shift, orderCode, opaqueToken("order_"), input.businessDate, customer, input.orderMode, table ?? 0,
         tableLabel, input.orderMode === "takeaway" ? customer : null, input.notes ?? null, legacyStatus(status), status,
         cancelled ? input.cancelReason ?? "Cancelled on the cashier tablet." : null, cancelled ? new Date() : null,
-        device.id, input.localUuid, input.createdAt, discountAmount, discountLabel, promotionId],
+        device.id, input.localUuid, input.createdAt, discountAmount, discountLabel, promotionId, cashier],
     );
     orderId = created.rows[0].id;
   }
@@ -288,8 +290,8 @@ async function applyMenuOrderUpdate(client: PoolClient, device: Device, staffUse
       [input.payment.method, input.payment.paidAt, input.serverOrderId],
     );
     await client.query(
-      "UPDATE orders SET restaurant_status='new', status='pending', shift_id=coalesce(shift_id,$2), payment_due_at=NULL, updated_at=now() WHERE id=$1",
-      [input.serverOrderId, shift],
+      "UPDATE orders SET restaurant_status='new', status='pending', shift_id=coalesce(shift_id,$2), payment_due_at=NULL, cashier_id=coalesce(cashier_id,$3), updated_at=now() WHERE id=$1",
+      [input.serverOrderId, shift, staffUserId],
     );
     await client.query(
       `INSERT INTO pos_audit_logs(outlet_key, actor_id, action, auditable_type, auditable_id, metadata)

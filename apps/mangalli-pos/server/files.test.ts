@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { inflateSync } from "node:zlib";
 
 import { buildPdf } from "./pdf";
 import { buildXlsx } from "./xlsx";
@@ -26,6 +27,22 @@ test("pdf has every page, page numbers and WinAnsi text", () => {
   assert.match(text, /^%PDF-1\.4/);
   assert.match(text, /\/Count 3 >>/);
   assert.match(text, /startxref\n\d+\n%%EOF\n$/);
+});
+
+// Insiden 13 Okt 2026: kode pesanan, tanggal, dan nama kasir di PDF terpotong menjadi "DM0905-…".
+test("pdf tables fit their content: wide tables turn landscape and long text wraps instead of being cut", () => {
+  const file = buildPdf({ title: "Orders", sections: [{
+    kind: "table", heading: "Orders",
+    columns: [{ header: "Code" }, { header: "Date & time" }, { header: "Service" }, { header: "Customer" }, { header: "Cashier" }, { header: "Status" }, { header: "Payment" }, { header: "Total", align: "right" }],
+    rows: [["DM0905-0620", "5 Sep 2026, 08:51", "Dine in · Table 12", "Ibu Sekar Ayu Paramitha Wulandari", "Rina Pratiwi", "Awaiting payment", "QRIS", "Rp 1.107.800"]],
+    total: ["1 orders", "", "", "", "", "", "Paid", "Rp 1.107.800"],
+  }] });
+  const raw = file.toString("latin1");
+  assert.match(raw, /\/MediaBox \[0 0 841\.89 595\.28\]/);
+  const streams = [...raw.matchAll(/stream\n([\s\S]*?)\nendstream/g)].map((match) => inflateSync(Buffer.from(match[1], "latin1")).toString("latin1")).join("\n");
+  const shown = [...streams.matchAll(/<([0-9a-f]+)> Tj/g)].map((match) => Buffer.from(match[1], "hex").toString("latin1")).join(" ");
+  for (const value of ["DM0905-0620", "5 Sep 2026, 08:51", "Rina Pratiwi", "Awaiting payment", "Rp 1.107.800", "Wulandari"]) assert.ok(shown.includes(value), value);
+  assert.ok(!shown.includes("\x85"), "no ellipsis");
 });
 
 test("zip round-trips compressed and stored files and rejects damage", () => {

@@ -11,8 +11,8 @@ export function outletFormat(zone: string) {
   return {
     formatTime: (value: Date | string | null) =>
       value ? format({ timeZone: zone, hour: "2-digit", minute: "2-digit" }, new Date(value)) : "—",
-    formatDateTime: (value: Date | string | null) =>
-      value ? format({ timeZone: zone, day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }, new Date(value)) : "—",
+    formatDateTime: (value: Date | string | null, withYear = false) =>
+      value ? format({ timeZone: zone, day: "numeric", month: "short", ...(withYear ? { year: "numeric" } : {}), hour: "2-digit", minute: "2-digit" }, new Date(value)) : "—",
     todayLabel: () => new Intl.DateTimeFormat(locale, { timeZone: zone, weekday: "long", day: "numeric", month: "long" }).format(new Date()),
   };
 }

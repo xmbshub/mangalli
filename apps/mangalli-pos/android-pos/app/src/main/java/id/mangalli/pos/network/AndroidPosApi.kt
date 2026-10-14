@@ -154,6 +154,7 @@ class AndroidPosApi(private val baseUrl: String) {
             tables = tables,
             promotionsJson = json.optJSONArray("promotions")?.toString() ?: "[]",
             timezone = json.optString("timezone").ifBlank { "Asia/Jakarta" },
+            openingHoursJson = outlet.optJSONArray("openingHours")?.toString() ?: "[]",
             approversJson = json.optJSONArray("approvers")?.toString() ?: "[]",
         )
     }
@@ -570,6 +571,8 @@ data class BootstrapSnapshot(
     val tables: List<TableSnapshot> = emptyList(),
     val promotionsJson: String = "[]",
     val timezone: String = "Asia/Jakarta",
+    // Jam buka dari dashboard, hanya untuk pengingat shift yang lupa ditutup.
+    val openingHoursJson: String = "[]",
     // Hash PIN persetujuan manager/owner (bukan PIN-nya), disimpan terenkripsi.
     val approversJson: String = "[]",
 )

@@ -512,45 +512,115 @@ input[type="checkbox"]:disabled, input[type="radio"]:disabled { opacity: .45; cu
 .promo-delete { margin-top: 8px; display: flex; justify-content: flex-start; }
 .line-item.discount { color: var(--success); }
 
-/* Ask Eline: tombol mengambang dan panel samping. */
-.ask-eline-fab { position: fixed; right: 20px; bottom: 20px; z-index: 70; display: inline-flex; align-items: center; gap: 8px; height: 44px; padding: 0 18px; border: 0; border-radius: 999px; background: var(--ink); color: #fff; font-size: var(--fs-sm); font-weight: var(--fw-medium); box-shadow: 0 10px 30px rgb(24 24 27 / .25); cursor: pointer; transition: transform .15s, box-shadow .15s; }
+/* Ask Eline: tombol mengambang dan panel samping. Tombol 12 px dari tepi, sejajar dasar sidebar. */
+.ask-eline-fab { position: fixed; right: 12px; bottom: 12px; z-index: 70; display: inline-flex; align-items: center; gap: 8px; height: 44px; padding: 0 18px; border: 0; border-radius: 999px; background: var(--ink); color: #fff; font-size: var(--fs-sm); font-weight: var(--fw-medium); box-shadow: 0 10px 30px rgb(24 24 27 / .25); cursor: pointer; transition: transform .15s, box-shadow .15s; }
 .ask-eline-fab:hover { transform: translateY(-1px); box-shadow: 0 14px 34px rgb(24 24 27 / .3); }
 .ask-eline-fab svg { color: var(--orange-300); }
-.ask-eline { position: fixed; top: 12px; right: 12px; bottom: 12px; z-index: 80; width: min(420px, calc(100vw - 24px)); display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: 0 24px 60px rgb(24 24 27 / .18); animation: ask-in .18s ease-out; overflow: hidden; }
 @keyframes ask-in { from { opacity: 0; transform: translateY(8px); } }
-.ask-eline-head { display: flex; align-items: center; gap: 10px; padding: 12px 12px 12px 16px; border-bottom: 1px solid var(--line); }
-.ask-eline-head div { flex: 1; display: grid; }
-.ask-eline-head strong { font-weight: var(--fw-medium); }
-.ask-eline-head small { color: var(--muted); font-size: var(--fs-xs); }
-.ask-eline-mark { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 50%; background: var(--orange-50); color: var(--orange-600); flex: 0 0 auto; }
-.ask-eline-mark.big { width: 52px; height: 52px; }
-.ask-eline-list { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
-.ask-eline-msg { max-width: 88%; font-size: var(--fs-sm); line-height: 1.55; }
-.ask-eline-msg p { margin: 0 0 6px; } .ask-eline-msg p:last-child { margin-bottom: 0; }
-.ask-eline-msg ol, .ask-eline-msg ul { margin: 4px 0 6px; padding-left: 20px; display: grid; gap: 3px; }
-.ask-eline-msg strong { font-weight: var(--fw-medium); }
-.ask-eline-msg.user { align-self: flex-end; padding: 9px 13px; border-radius: 16px 16px 4px 16px; background: var(--ink); color: #fff; white-space: pre-wrap; }
-.ask-eline-msg.assistant { align-self: flex-start; padding: 10px 13px; border-radius: 16px 16px 16px 4px; background: var(--line-soft); color: var(--text); }
-.ask-eline-typing { display: inline-flex; gap: 4px; padding: 4px 0; }
+/* Panel Ask Eline, gaya obrolan modern (permintaan owner 13 Okt 2026): kepala ringkas,
+   jawaban Eline tanpa gelembung di atas putih, pesan owner gelembung abu lembut, kolom
+   tulis satu kotak dengan tombol kirim di dalamnya. */
+.ask-eline { position: fixed; top: 12px; right: 12px; bottom: 12px; z-index: 80; width: min(440px, calc(100vw - 24px)); display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: 0 24px 60px rgb(24 24 27 / .16); animation: ask-in .2s cubic-bezier(.22, 1, .36, 1); overflow: hidden; }
+.ask-eline-head { display: flex; align-items: center; gap: 10px; min-height: 56px; padding: 0 10px 0 16px; border-bottom: 1px solid var(--line-soft); }
+.ask-eline-head strong { flex: 1; font-size: var(--fs-md); font-weight: var(--fw-medium); }
+.ask-eline-head-actions { display: flex; gap: 2px; }
+.ask-eline-tool { width: 34px; height: 34px; display: grid; place-items: center; border: 0; border-radius: 10px; background: transparent; color: var(--muted); cursor: pointer; transition: background .15s, color .15s; }
+.ask-eline-tool:hover { background: var(--line-soft); color: var(--ink); }
+.ask-eline-tool:disabled { opacity: .4; cursor: default; }
+.ask-eline-mark { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%; background: linear-gradient(140deg, var(--orange-100), var(--orange-50)); color: var(--orange-600); flex: 0 0 auto; }
+.ask-eline-mark.big { width: 48px; height: 48px; }
+.ask-eline-list { flex: 1; overflow-y: auto; padding: 20px 18px 8px; display: flex; flex-direction: column; gap: 18px; scroll-behavior: smooth; }
+.ask-eline-msg { font-size: var(--fs-md); line-height: 1.6; color: var(--text); animation: ask-msg .22s ease-out; min-width: 0; }
+.ask-eline-msg.user { align-self: flex-end; max-width: 85%; padding: 9px 14px; border-radius: 18px 18px 6px 18px; background: var(--line-soft); color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; }
+.ask-eline-msg.assistant { align-self: stretch; }
+.ask-eline-msg p { margin: 0 0 10px; } .ask-eline-msg > :last-child { margin-bottom: 0; }
+.ask-eline-msg strong { font-weight: var(--fw-medium); color: var(--ink); }
+.ask-eline-msg em { font-style: italic; }
+.ask-eline-msg code { padding: 1px 5px; border-radius: 6px; background: var(--line-soft); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .88em; color: var(--ink); }
+.ask-eline-msg pre { margin: 0 0 10px; padding: 10px 12px; border-radius: 10px; background: var(--line-soft); overflow-x: auto; }
+.ask-eline-msg pre code { padding: 0; background: none; font-size: var(--fs-xs); white-space: pre; }
+.ask-eline-msg ol, .ask-eline-msg ul { margin: 0 0 10px; padding-left: 22px; display: grid; gap: 4px; }
+.ask-eline-msg li::marker { color: var(--muted); }
+.ask-eline-heading { color: var(--ink); font-weight: var(--fw-medium); }
+.ask-eline-msg .ask-eline-heading { margin: 16px 0 6px; }
+.ask-eline-msg .ask-eline-heading:first-child { margin-top: 0; }
+.ask-eline-heading.h1, .ask-eline-heading.h2 { font-size: var(--fs-lg); }
+.ask-eline-msg hr { border: 0; border-top: 1px solid var(--line); margin: 14px 0; }
+.ask-eline-msg blockquote { margin: 0 0 10px; padding: 10px 12px; border-radius: 10px; background: var(--orange-50); color: var(--text); font-size: var(--fs-sm); }
+.ask-eline-msg blockquote p { margin: 0; }
+.ask-eline-table { margin: 0 0 10px; overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; }
+.ask-eline-table table { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
+.ask-eline-table th, .ask-eline-table td { padding: 8px 10px; text-align: left; vertical-align: top; }
+.ask-eline-table td { border-top: 1px solid var(--line-soft); }
+.ask-eline-table thead th { background: #fafafa; color: var(--muted); font-size: var(--fs-xs); font-weight: var(--fw-medium); white-space: nowrap; border-bottom: 1px solid var(--line); }
+.ask-eline-table .right { text-align: right; }
+.ask-eline-table tbody tr:hover { background: #fafafa; }
+.ask-eline-typing { display: inline-flex; gap: 4px; padding: 8px 0; }
 .ask-eline-typing i { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); animation: ask-dot 1s infinite ease-in-out; }
 .ask-eline-typing i:nth-child(2) { animation-delay: .15s; } .ask-eline-typing i:nth-child(3) { animation-delay: .3s; }
 @keyframes ask-dot { 50% { opacity: .3; transform: translateY(-2px); } }
-.ask-eline-empty { margin: auto 0; display: grid; justify-items: center; gap: 8px; text-align: center; padding: 8px; }
-.ask-eline-empty strong { font-weight: var(--fw-medium); font-size: var(--fs-lg); }
+@keyframes ask-msg { from { opacity: 0; transform: translateY(4px); } }
+.ask-eline-status { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px; background: var(--orange-50); color: var(--orange-600); font-size: var(--fs-sm); animation: ask-status 1.6s ease-in-out infinite; }
+@keyframes ask-status { 50% { opacity: .55; } }
+.ask-eline-copy { display: inline-flex; align-items: center; gap: 5px; margin: 2px 0 0 -8px; padding: 3px 8px; border: 0; border-radius: 8px; background: transparent; color: #a1a1aa; font-size: var(--fs-xs); cursor: pointer; transition: background .15s, color .15s; }
+.ask-eline-copy:hover { background: var(--line-soft); color: var(--ink); }
+.ask-eline-file { display: flex; align-items: center; gap: 12px; margin: 0 0 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: #fff; color: var(--ink); transition: border-color .15s, background .15s, transform .15s; animation: ask-msg .25s ease-out; }
+.ask-eline-file:hover { border-color: var(--orange-300); background: var(--orange-50); }
+.ask-eline-file:active { transform: scale(.99); }
+.ask-eline-file > span:nth-child(2) { flex: 1; min-width: 0; display: grid; }
+.ask-eline-file strong { font-size: var(--fs-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ask-eline-file small { color: var(--muted); font-size: var(--fs-xs); }
+.ask-eline-file > svg { flex: 0 0 auto; color: var(--muted); }
+.ask-eline-file-icon { flex: 0 0 36px; width: 36px; height: 36px; display: grid; place-items: center; border-radius: 10px; background: #ecfdf5; color: #15803d; }
+.ask-eline-file-icon.pdf { background: var(--danger-bg); color: var(--danger); }
+.ask-eline-file p, .ask-eline-msg p:has(> .ask-eline-file:only-child) { margin: 0; }
+.ask-eline-empty { margin: auto 0; display: grid; justify-items: center; gap: 6px; text-align: center; padding: 8px 4px; }
+.ask-eline-empty strong { margin-top: 6px; font-weight: var(--fw-medium); font-size: var(--fs-lg); color: var(--ink); }
 .ask-eline-empty p { margin: 0; color: var(--muted); font-size: var(--fs-sm); }
-.ask-eline-suggest { display: grid; gap: 8px; width: 100%; margin-top: 8px; }
-.ask-eline-suggest button { text-align: left; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--control-radius); background: #fff; color: var(--text); font-size: var(--fs-sm); cursor: pointer; transition: border-color .15s, background .15s; }
-.ask-eline-suggest button:hover { border-color: var(--orange-300); background: var(--orange-50); }
-.ask-eline-compose { display: flex; align-items: flex-end; gap: 8px; padding: 12px; border-top: 1px solid var(--line); }
-.ask-eline-compose textarea { flex: 1; min-height: 42px; max-height: 140px; resize: none; field-sizing: content; }
-.ask-eline-send { width: 42px; height: 42px; flex: 0 0 auto; display: grid; place-items: center; border: 0; border-radius: 50%; background: var(--orange-500); color: #fff; cursor: pointer; }
-.ask-eline-send:disabled { background: var(--line); color: var(--muted); cursor: default; }
+.ask-eline-suggest { display: grid; gap: 6px; width: 100%; margin-top: 14px; }
+.ask-eline-suggest button { display: flex; align-items: center; justify-content: space-between; gap: 10px; text-align: left; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: #fff; color: var(--text); font-size: var(--fs-sm); cursor: pointer; transition: border-color .15s, background .15s, color .15s; }
+.ask-eline-suggest button svg { flex: 0 0 auto; color: var(--muted); transition: transform .15s, color .15s; }
+.ask-eline-suggest button:hover { border-color: var(--orange-200); background: var(--orange-50); color: var(--ink); }
+.ask-eline-suggest button:hover svg { transform: translateX(2px); color: var(--orange-600); }
+.ask-eline-error { margin: 0; padding: 8px 12px; border-radius: 10px; background: var(--danger-bg); color: var(--danger); font-size: var(--fs-sm); }
+.ask-eline-compose { padding: 8px 12px 10px; display: grid; gap: 6px; }
+.ask-eline-box { display: flex; align-items: flex-end; gap: 6px; padding: 6px 6px 6px 14px; border: 1px solid var(--line); border-radius: 20px; background: #fff; box-shadow: 0 1px 2px rgb(0 0 0 / .04); transition: border-color .15s, box-shadow .15s; }
+.ask-eline-box:focus-within { border-color: var(--orange-300); box-shadow: 0 0 0 3px color-mix(in srgb, var(--orange-500) 12%, white); }
+.ask-eline-box textarea { flex: 1; min-height: 34px; max-height: 160px; padding: 7px 0; border: 0; border-radius: 0; background: transparent; resize: none; field-sizing: content; box-shadow: none; font-size: var(--fs-md); }
+.ask-eline-box textarea:focus, .ask-eline-box textarea:focus-visible { border: 0; box-shadow: none; outline: none; }
+.ask-eline-send { width: 34px; height: 34px; flex: 0 0 auto; display: grid; place-items: center; border: 0; border-radius: 50%; background: var(--ink); color: #fff; cursor: pointer; transition: background .15s, transform .12s; }
+.ask-eline-send:hover:not(:disabled) { background: var(--orange-500); }
+.ask-eline-send:active:not(:disabled) { transform: scale(.94); }
+.ask-eline-send:disabled { background: var(--line-soft); color: #a1a1aa; cursor: default; }
+.ask-eline-foot { color: #a1a1aa; font-size: 11px; text-align: center; }
+/* Grafik dari jawaban Eline (blok ```chart). */
+.ask-chart { margin: 0 0 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
+.ask-chart figcaption { margin-bottom: 10px; color: var(--ink); font-size: var(--fs-sm); font-weight: var(--fw-medium); }
+.ask-chart.pending { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: var(--fs-sm); animation: ask-status 1.6s ease-in-out infinite; }
+.ask-chart-bars { display: grid; gap: 8px; }
+.ask-chart-row { display: grid; grid-template-columns: minmax(0, 38%) minmax(0, 1fr) auto; align-items: center; gap: 10px; font-size: var(--fs-xs); }
+.ask-chart-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+.ask-chart-value { color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ask-chart-track { position: relative; height: 10px; border-radius: 999px; background: var(--line-soft); overflow: hidden; }
+.ask-chart-track > span { position: absolute; inset: 0 auto 0 0; border-radius: inherit; background: var(--orange-500); transform-origin: left; animation: meter-grow .6s cubic-bezier(.22, 1, .36, 1) both; }
+.ask-chart-track > span.soft { background: var(--orange-200); }
+.ask-chart-columns { display: grid; gap: 4px; align-items: end; height: 140px; }
+.ask-chart-column { height: 100%; display: grid; grid-template-rows: 1fr auto; gap: 4px; min-width: 0; }
+.ask-chart-stack { position: relative; display: flex; align-items: flex-end; justify-content: center; gap: 2px; }
+.ask-chart-stack > span { flex: 1; max-width: 18px; min-height: 2px; border-radius: 4px 4px 0 0; background: var(--orange-500); transform-origin: bottom; animation: bar-grow .6s cubic-bezier(.22, 1, .36, 1) both; }
+.ask-chart-stack > span.soft { background: var(--orange-200); }
+.ask-chart-column small { overflow: hidden; text-overflow: clip; white-space: nowrap; text-align: center; color: var(--muted); font-size: 10px; }
+.ask-chart-legend { display: flex; gap: 14px; margin-top: 10px; color: var(--muted); font-size: var(--fs-xs); }
+.ask-chart-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.ask-chart-legend i { width: 10px; height: 10px; border-radius: 3px; background: var(--orange-500); }
+.ask-chart-legend i.soft { background: var(--orange-200); }
+@media (prefers-reduced-motion: reduce) { .ask-eline, .ask-eline-msg, .ask-eline-status, .ask-eline-file, .ask-chart *, .ask-chart.pending { animation: none; } }
 @media (max-width: 760px) { .ask-eline { top: 0; right: 0; bottom: 0; width: 100vw; border-radius: 0; } .ask-eline-fab { right: 14px; bottom: calc(78px + env(safe-area-inset-bottom)); width: 48px; height: 48px; padding: 0; justify-content: center; } .ask-eline-fab span { display: none; } }
 /* Ask Eline berdampingan dengan drawer: panel dan tombolnya pindah ke kiri
    drawer, jadi owner bisa bertanya sambil mengisi form. Di layar sempit panel
    menutupi drawer (tetap bisa ditutup), dan tombolnya disembunyikan saat drawer terbuka. */
 body:has(.drawer) .ask-eline { right: calc(520px + 24px); z-index: 52; }
-body:has(.drawer) .ask-eline-fab { right: calc(520px + 32px); z-index: 52; }
+body:has(.drawer) .ask-eline-fab { right: calc(520px + 24px); z-index: 52; }
 body:has(.dialog) .ask-eline-fab { display: none; }
 @media (max-width: 1000px) {
   body:has(.drawer) .ask-eline { right: 12px; z-index: 80; }
@@ -609,19 +679,39 @@ body:has(.dialog) .ask-eline-fab { display: none; }
 .option-row .inline-form { flex-direction: row; }
 .icon-button.danger { color: var(--danger, #dc2626); }
 .icon-button.danger:hover { background: color-mix(in srgb, var(--danger, #dc2626) 8%, white); }
-.group-edit { display: grid; grid-template-columns: 1fr 110px; align-items: end; gap: 10px; justify-content: stretch; }
-.group-edit .chip { grid-column: 1; grid-row: 2; justify-self: start; align-self: center; }
-.group-edit .action-row { grid-column: 1 / -1; grid-row: 2; justify-self: end; flex-wrap: nowrap; }
-.group-edit .form-message { grid-column: 1 / -1; }
+/* Grup opsi produk (edit produk, tambah grup, dan OptionBuilder di Add product): satu kartu
+   per grup; kepalanya nama, Max, Required, lalu aksi. Kartu memotong latar kepala di sudutnya. */
+.line-items { overflow: hidden; }
+.group-row { align-items: center; }
+.group-row .action-row { flex-wrap: nowrap; gap: 4px; align-items: center; }
+.option-group-head { display: grid; grid-template-columns: minmax(0, 1fr) 92px auto auto; align-items: center; gap: 8px; padding: 8px; background: #fafafa; }
+.option-group-head input { min-height: 36px; padding: 6px 10px; font-size: var(--fs-sm); }
+.option-group-head .chip { min-height: 36px; }
+.option-max > span { left: 10px; font-size: var(--fs-xs); }
+.option-group-head .option-max > input { padding-left: 40px; }
+.group-edit { grid-template-columns: minmax(0, 1fr) 92px auto; background: #fff; }
+.group-edit-actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: 8px; }
+.option-group-new { border-style: dashed; background: #fff; }
+.option-group-new .option-group-head { background: transparent; }
+.option-builder { display: grid; gap: 10px; }
+.option-builder-add { justify-self: start; }
+.option-builder .option-edit input:not(:focus):not(:hover) { border-color: var(--line); background: #fff; }
+.option-builder .option-row { align-items: center; }
+.option-add { padding: 4px 6px; }
+@media (max-width: 480px) {
+  .option-group-head { grid-template-columns: minmax(0, 1fr) 92px; }
+  .option-group-head > :nth-child(n+3) { justify-self: start; }
+  .option-group-head > :last-child:not(.group-edit-actions) { justify-self: end; }
+}
 .table-area header .action-row { margin-left: auto; }
 
 /* PIN persetujuan hanya untuk peran yang menyetujui (owner/manager). */
 form:has(input[name="role"][value="staff"]:checked) .approval-pin,
 form:has(input[name="role"][value="viewer"]:checked) .approval-pin { display: none; }
 
-/* Kredit pembuat di kaki setiap halaman; ruang bawahnya menjaga tombol Ask Eline
-   (dan navigasi bawah di HP) tidak menutupi konten terakhir. */
-.app-credit { display: block; margin-top: auto; text-align: center; color: var(--muted); font-size: var(--fs-xs); padding: 0 16px 24px; }
+/* Kredit pembuat di kaki setiap halaman. Batas bawah teksnya 12 px dari tepi layar, sama
+   dengan sidebar mengambang dan tombol Ask Eline (permintaan owner 13 Okt 2026). */
+.app-credit { display: block; margin-top: auto; text-align: center; color: var(--muted); font-size: var(--fs-xs); line-height: 16px; padding: 0 16px 11px; }
 .app-credit a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
 .app-credit a:hover { color: var(--ink); }
 .auth-card .app-credit { padding: 0; }
@@ -694,21 +784,6 @@ form:has(input[name="role"][value="viewer"]:checked) .approval-pin { display: no
 @media (prefers-reduced-motion: reduce) { .heat-cell, .bars .bar, .meter span { animation: none; } }
 
 /* Ask Eline: status alat dan tombol unduh file laporan. */
-.ask-eline-status { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px; background: var(--orange-50); color: var(--orange-600); font-size: var(--fs-sm); animation: ask-status 1.6s ease-in-out infinite; }
-@keyframes ask-status { 50% { opacity: .55; } }
-.ask-eline-file { display: flex; align-items: center; gap: 10px; margin: 8px 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--control-radius); background: #fff; color: var(--ink); transition: border-color .15s, background .15s; animation: ask-in .25s ease-out; }
-.ask-eline-file:hover { border-color: var(--orange-300); background: var(--orange-50); }
-.ask-eline-file svg { flex: 0 0 auto; color: var(--orange-600); }
-.ask-eline-file span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-sm); }
-.ask-eline-file small { color: var(--orange-600); font-size: var(--fs-xs); }
-@media (prefers-reduced-motion: reduce) { .ask-eline-status, .ask-eline-file { animation: none; } }
-.ask-eline-msg .ask-eline-heading { margin: 12px 0 4px; color: var(--ink); font-weight: var(--fw-medium); }
-.ask-eline-msg hr { border: 0; border-top: 1px solid var(--line); margin: 12px 0; }
-.ask-eline-msg blockquote { margin: 8px 0; padding: 8px 12px; border-left: 3px solid var(--orange-300); background: var(--orange-50); border-radius: 0 10px 10px 0; color: var(--text); }
-.ask-eline-table { margin: 8px 0; overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; }
-.ask-eline-table table { width: 100%; border-collapse: collapse; font-size: var(--fs-xs); }
-.ask-eline-table th, .ask-eline-table td { padding: 7px 9px; border-top: 1px solid var(--line-soft); text-align: left; vertical-align: top; }
-.ask-eline-table thead th { border-top: 0; background: var(--canvas); color: var(--muted); font-weight: var(--fw-medium); white-space: nowrap; }
 
 /* ---------- Pemilih cabang ---------- */
 .outlet-switcher { position: relative; margin: -8px 4px 14px; }
@@ -819,12 +894,15 @@ form:has(input[name="role"][value="viewer"]:checked) .approval-pin { display: no
 }
 
 /* Toast hasil aksi: tengah atas area konten, sidebar tidak dihitung (kolom sidebar 244 px). */
-.toasts { position: fixed; left: calc(50vw + 122px); top: 16px; z-index: 95; transform: translateX(-50%); display: grid; gap: 8px; width: min(440px, calc(100vw - 32px)); pointer-events: none; }
-.toast { pointer-events: auto; display: flex; align-items: flex-start; gap: 10px; padding: 12px 10px 12px 14px; background: var(--ink); color: #fff; border-radius: var(--control-radius); box-shadow: 0 16px 40px rgb(24 24 27 / .24); font-size: var(--fs-sm); animation: toast-in .24s cubic-bezier(.22, 1, .36, 1); }
-.toast > svg { flex: 0 0 auto; margin-top: 2px; }
+/* Lebar toast mengikuti isinya (pesan pendek = kapsul ringkas, panjang membungkus sampai
+   520 px), sama dengan toast APK (permintaan owner 14 Okt 2026). */
+.toasts { position: fixed; left: calc(50vw + 122px); top: 16px; z-index: 95; transform: translateX(-50%); display: grid; justify-items: center; gap: 8px; width: min(520px, calc(100vw - 32px)); pointer-events: none; }
+.toast { pointer-events: auto; width: fit-content; max-width: 100%; display: flex; align-items: flex-start; gap: 10px; padding: 10px 8px 10px 12px; background: var(--ink); color: #fff; border-radius: var(--control-radius); box-shadow: 0 16px 40px rgb(24 24 27 / .24); font-size: var(--fs-sm); animation: toast-in .24s cubic-bezier(.22, 1, .36, 1); }
+.toast > svg { flex: 0 0 auto; margin-top: 4px; }
 .toast.ok > svg { color: #86efac; }
 .toast.error { background: var(--danger); }
-.toast span { flex: 1; min-width: 0; }
+/* Baris teks setinggi tombol tutup (24 px): satu baris sejajar tengah, banyak baris rata atas. */
+.toast span { flex: 1; min-width: 0; padding: 2px 0; line-height: 20px; }
 .toast button { flex: 0 0 auto; display: grid; place-items: center; width: 24px; height: 24px; border: 0; border-radius: 50%; background: transparent; color: inherit; opacity: .7; cursor: pointer; }
 .toast button:hover { opacity: 1; background: rgb(255 255 255 / .12); }
 @keyframes toast-in { from { opacity: 0; transform: translateY(-8px) scale(.98); } }
@@ -895,3 +973,134 @@ body:has(.step-up-backdrop) :is(.sidebar, .mobile-header) { z-index: 61; }
 .notice .hint-icon, .list-row strong .hint-icon { vertical-align: -4px; margin-left: 4px; }
 
 .chart-tip { white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* QRIS toko: status tersimpan sebagai kartu (ikon, nama merchant, lencana, aksi) supaya
+   hasil simpan tidak menempel di samping tombol unggah (permintaan owner 13 Okt 2026). */
+.qris-status { display: flex; align-items: center; gap: 12px; padding: 10px 10px 10px 12px; border: 1px solid var(--line); border-radius: var(--control-radius); background: #fff; font-weight: var(--fw-regular); }
+.qris-status.empty { border-style: dashed; background: var(--line-soft); }
+.qris-status-icon { flex: 0 0 36px; width: 36px; height: 36px; display: grid; place-items: center; border-radius: 10px; background: var(--orange-50); color: var(--orange-600); }
+.qris-status.empty .qris-status-icon { background: #fff; color: var(--muted); }
+.qris-status-text { flex: 1; min-width: 0; display: grid; }
+.qris-status-name { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.qris-status-text strong { font-size: var(--fs-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qris-status-text small { color: var(--muted); font-size: var(--fs-xs); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qris-status-actions { display: flex; gap: 4px; flex: 0 0 auto; }
+.qris-status input[type="file"] { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+@media (max-width: 480px) { .qris-status { flex-wrap: wrap; } .qris-status-actions { width: 100%; justify-content: flex-end; } }
+
+/* ---------- Ponsel: bilah bawah + lembar More (permintaan owner 14 Okt 2026) ----------
+   Sidebar diganti bilah tab mengambang 12 px dari tepi (sama dengan rail tablet dan
+   sidebar desktop), maksimal 5 tombol; menu lain di lembar yang muncul dari bawah. */
+.tabbar { display: none; }
+@media (max-width: 760px) {
+  .sidebar { display: none; }
+  .tabbar { position: fixed; z-index: 40; left: 12px; right: 12px; bottom: max(12px, env(safe-area-inset-bottom)); display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 2px; padding: 6px; background: rgb(255 255 255 / .96); backdrop-filter: blur(12px); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: 0 12px 32px rgb(24 24 27 / .12); }
+  .tabbar-item { position: relative; display: grid; justify-items: center; align-content: center; gap: 2px; min-height: 54px; padding: 4px 2px; border: 0; border-radius: 12px; background: transparent; color: var(--muted); font-size: 11px; font-weight: var(--fw-regular); cursor: pointer; -webkit-tap-highlight-color: transparent; transition: background .15s, color .15s, transform .12s; }
+  .tabbar-item > span:last-child { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tabbar-item:active { transform: scale(.96); }
+  .tabbar-item[aria-current="page"] { color: var(--ink); font-weight: var(--fw-medium); }
+  .tabbar-icon { position: relative; display: grid; place-items: center; width: 52px; height: 28px; border-radius: 999px; transition: background .15s, color .15s; }
+  .tabbar-item[aria-current="page"] .tabbar-icon { background: var(--orange-100); color: var(--orange-600); }
+  .tabbar-badge { position: absolute; top: -4px; right: 6px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px; background: var(--orange-500); color: #fff; font-size: 10px; line-height: 16px; text-align: center; font-weight: var(--fw-medium); box-shadow: 0 0 0 2px #fff; }
+  .tabbar-badge.dot { min-width: 8px; width: 8px; height: 8px; padding: 0; top: 0; right: 12px; }
+  .sheet-backdrop { position: fixed; inset: 0; z-index: 85; background: rgb(24 24 27 / .32); animation: whats-new-fade .18s ease-out; }
+  .sheet { position: absolute; left: 0; right: 0; bottom: 0; max-height: 86dvh; overflow-y: auto; padding: 8px 16px max(20px, env(safe-area-inset-bottom)); background: var(--surface); border-radius: 20px 20px 0 0; box-shadow: 0 -16px 40px rgb(24 24 27 / .16); animation: sheet-up .26s cubic-bezier(.22, 1, .36, 1); }
+  .sheet-handle { display: block; width: 36px; height: 4px; margin: 0 auto 6px; border-radius: 999px; background: var(--line); }
+  .sheet-head { display: flex; align-items: center; justify-content: space-between; min-height: 44px; }
+  .sheet-head strong { font-size: var(--fs-lg); }
+  .sheet-group { display: grid; gap: 8px; padding-top: 8px; }
+  .sheet-group .nav-group { display: block; margin: 4px 2px 0; }
+  .sheet-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .sheet-tile { display: grid; justify-items: center; gap: 6px; padding: 12px 4px; border: 1px solid var(--line); border-radius: var(--control-radius); color: var(--text); font-size: var(--fs-xs); text-align: center; transition: background .15s, border-color .15s, transform .12s; }
+  .sheet-tile:active { transform: scale(.97); }
+  .sheet-tile[aria-current="page"] { border-color: var(--orange-300); background: var(--orange-50); color: var(--orange-600); }
+  .sheet-tile-icon { position: relative; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: var(--line-soft); color: var(--text); }
+  .sheet-tile[aria-current="page"] .sheet-tile-icon { background: var(--orange-100); color: var(--orange-600); }
+  @keyframes sheet-up { from { transform: translateY(100%); } }
+}
+@media (max-width: 760px) and (prefers-reduced-motion: reduce) { .sheet, .sheet-backdrop { animation: none; } }
+
+/* Tabel menjadi kartu di layar sempit (.table-wrap.cards). Sel biasa di kolom kiri
+   (judul, keterangan), .end di kanan bertumpuk (status, total, sakelar), [data-label]
+   satu baris label + nilai selebar kartu, .row-end aksi di baris terakhir. */
+@media (max-width: 760px) {
+  .table-wrap.cards { overflow: visible; }
+  .table-wrap.cards thead { display: none; }
+  .table-wrap.cards table, .table-wrap.cards tbody { display: block; }
+  .table-wrap.cards tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-auto-flow: row dense; column-gap: 12px; row-gap: 6px; align-items: start; padding: 14px 16px; border-top: 1px solid var(--line); }
+  .table-wrap.cards tr:first-child { border-top: 0; }
+  .table-wrap.cards tbody tr:hover { background: transparent; }
+  .table-wrap.cards td { display: block; grid-column: 1; min-width: 0; padding: 0; border: 0; text-align: left; white-space: normal; }
+  .table-wrap.cards td.end { grid-column: 2; justify-self: end; text-align: right; }
+  .table-wrap.cards td[data-label] { grid-column: 1 / -1; display: flex; flex-wrap: wrap; justify-content: flex-end; column-gap: 12px; color: var(--ink); }
+  .table-wrap.cards td[data-label]::before { content: attr(data-label); margin-right: auto; color: var(--muted); }
+  .table-wrap.cards td[data-label] .cell-sub { flex-basis: 100%; text-align: right; }
+  .table-wrap.cards td.row-end { grid-column: 1 / -1; justify-self: stretch; }
+  .table-wrap.cards td.row-end .row-actions, .table-wrap.cards td.row-end > form, .table-wrap.cards td.row-end > .badge { justify-content: flex-end; justify-self: end; }
+  .table-wrap.cards td.row-end .action-row { justify-content: flex-end; }
+  .table-wrap.cards .cell-main .thumb { width: 48px; height: 48px; flex-basis: 48px; }
+  .table-wrap.cards td.hide-sm { display: none; }
+  .table-wrap.cards td.first { order: -1; }
+  /* Dapur: kolom ditumpuk, kolom kosong ringkas. */
+  .board { grid-template-columns: minmax(0, 1fr); overflow: visible; }
+  .board-col { min-height: 0; }
+  .board-empty { padding: 6px 0 4px; }
+}
+@media (max-width: 760px) {
+  .table-wrap.cards td.row-end { text-align: right; }
+  .table-wrap.cards td.row-end .row-actions { justify-content: flex-end; }
+  /* KPI: keterangan boleh dua baris di ponsel, tidak terpotong "…". */
+  .kpi-hint { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  /* Filter: pencarian selebar layar, pilihan dan tanggal dua kolom sama lebar. */
+  .toolbar { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .toolbar .search { grid-column: 1 / -1; max-width: none; }
+  .toolbar .select, .toolbar .date-field { min-width: 0; }
+  .toolbar > .button { grid-column: 1 / -1; }
+  .toolbar > input[type="hidden"] + .search { grid-column: 1 / -1; }
+  .report-range { display: grid; gap: 10px; }
+  .report-range .toolbar { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; }
+  /* Rentang (Today, 7 days…) selebar layar dengan tinggi 40 px, bisa digeser. */
+  .segmented { display: flex; width: 100%; }
+  .segmented a { flex: 1 0 auto; min-height: 36px; display: inline-grid; place-items: center; }
+  /* Tab bergeser: tepi kanan memudar selama masih ada tab tersembunyi. */
+  .tabs { mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); }
+  .tab { padding: 10px 12px; }
+  /* Pagination: tombol 40 px, nomor halaman ringkas. */
+  .pagination { justify-content: center; }
+  .pagination > span { width: 100%; text-align: center; }
+  .page-link { min-width: 40px; height: 40px; }
+  .pagination .button.small { min-height: 40px; }
+  /* Sakelar 44x26 supaya mudah diketuk jari. */
+  .switch { width: 44px; height: 26px; }
+  .switch::after { width: 22px; height: 22px; }
+  .switch[aria-checked="true"]::after { transform: translateX(18px); }
+  .icon-button.small { width: 40px; height: 40px; }
+  /* Kepala halaman: judul dan keterangan penuh, tombol aksi di bawahnya selebar layar. */
+  .page-header { align-items: flex-start; }
+  .page-header > div:first-child { flex: 1 1 100%; }
+  .page-action { width: 100%; }
+  .page-action > .button, .page-action > .action-row { flex: 1 1 0; }
+  .page-action .action-row .button { flex: 1 1 0; }
+  .panel-header { flex-wrap: wrap; }
+}
+/* Isian punya cincin fokus sendiri (garis oranye + bayangan); outline fokus global tidak
+   ditumpuk di atasnya (cincin ganda di semua layar). */
+input:focus-visible, textarea:focus-visible, select:focus-visible { outline: none; }
+@media (max-width: 760px) {
+  /* Tombol utama drawer selebar layar, mudah dijangkau jempol. */
+  .drawer-footer { padding-bottom: max(12px, env(safe-area-inset-bottom)); }
+  .drawer-footer > .button { flex: 1 1 0; min-height: 48px; }
+  .ask-eline-fab { bottom: calc(92px + env(safe-area-inset-bottom)); }
+}
+@media (max-width: 760px) {
+  /* Ketukan kartu dan baris memberi umpan balik singkat, seperti daftar aplikasi native. */
+  .table-wrap.cards tr { transition: background .12s; }
+  .table-wrap.cards tr:has(a):active, .list-row:active, .ticket:active { background: var(--line-soft); }
+  /* Drawer layar penuh naik dari bawah. */
+  .drawer { animation: sheet-up .28s cubic-bezier(.22, 1, .36, 1); }
+  .drawer-header { padding-top: max(12px, env(safe-area-inset-top)); }
+  .mobile-header { padding-top: max(8px, env(safe-area-inset-top)); height: auto; min-height: 56px; }
+  /* Isian 16 px: Safari iOS tidak memperbesar halaman saat kolom difokus. */
+  input, select, textarea, .select-trigger { font-size: 16px; }
+}
+@media (max-width: 760px) and (prefers-reduced-motion: reduce) { .drawer { animation: none; } }

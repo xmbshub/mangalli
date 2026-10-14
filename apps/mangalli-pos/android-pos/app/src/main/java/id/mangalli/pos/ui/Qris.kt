@@ -54,6 +54,23 @@ fun QrImage(payload: String, size: Dp, modifier: Modifier = Modifier) {
 
 @Composable
 fun QrisCard(qris: QrisDisplay, total: Double, onEnlarge: () -> Unit, onPrint: (() -> Unit)?, busy: Boolean) {
+    if (LocalCompact.current) {
+        // Ponsel: QR di tengah, cukup besar untuk dipindai langsung dari layar.
+        Column(
+            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(Pos.RadiusCard)).border(1.dp, Pos.Line, RoundedCornerShape(Pos.RadiusCard)).padding(Pos.Space4),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(Pos.Space2),
+        ) {
+            QrImage(qris.payload, 200.dp)
+            Text(formatPrice(total), style = PosType.AmountSmall, color = Pos.Ink)
+            qris.merchant?.let { Text(it, style = PosType.BodySmall, color = Pos.Text) }
+            Row(horizontalArrangement = Arrangement.spacedBy(Pos.Space2)) {
+                PosButton("Enlarge", onClick = onEnlarge, variant = ButtonVariant.Secondary, size = ButtonSize.Small, icon = Icons.Outlined.OpenInFull)
+                if (onPrint != null) PosButton("Print", onClick = onPrint, variant = ButtonVariant.Secondary, size = ButtonSize.Small, icon = Icons.Outlined.Print, enabled = !busy)
+            }
+        }
+        return
+    }
     Row(
         modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(Pos.RadiusCard)).border(1.dp, Pos.Line, RoundedCornerShape(Pos.RadiusCard)).padding(Pos.Space4),
         horizontalArrangement = Arrangement.spacedBy(Pos.Space4),
@@ -78,9 +95,9 @@ fun QrisCard(qris: QrisDisplay, total: Double, onEnlarge: () -> Unit, onPrint: (
 fun QrisFullScreen(qris: QrisDisplay, total: Double, onClose: () -> Unit) {
     PosDialog(onDismiss = onClose, width = 560.dp) {
         DialogHeader("Scan to pay", qris.merchant, onClose = onClose)
-        Column(modifier = Modifier.fillMaxWidth().padding(Pos.Space6), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Pos.Space3)) {
+        Column(modifier = Modifier.fillMaxWidth().padding(dialogInset()), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Pos.Space3)) {
             Text(formatPrice(total), style = PosType.Amount, color = Pos.Ink)
-            QrImage(qris.payload, 380.dp)
+            QrImage(qris.payload, if (LocalCompact.current) (androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp - 64).dp.coerceAtMost(380.dp) else 380.dp)
             Text("Scan with any bank or e-wallet app.", style = PosType.BodySmall, color = Pos.Muted, textAlign = TextAlign.Center)
         }
     }

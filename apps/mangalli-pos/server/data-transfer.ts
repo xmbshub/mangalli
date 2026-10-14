@@ -209,7 +209,7 @@ export async function importOutlet(operator: Operator, archive: Buffer): Promise
       const token = (await taken(client, "orders", "public_token", row.public_token)) ? opaqueToken("") : row.public_token;
       orders.set(String(row.id), await insertRow(client, "orders", {
         ...row, outlet_key: target, order_code: code, public_token: token, device_id: null, shift_id: shiftIds.get(String(row.shift_id)) ?? null,
-        voided_by: person(row.voided_by), promotion_id: promotions.get(String(row.promotion_id)) ?? null,
+        voided_by: person(row.voided_by), cashier_id: person(row.cashier_id), promotion_id: promotions.get(String(row.promotion_id)) ?? null,
       }));
     }
     for (const row of read("order_items")) {

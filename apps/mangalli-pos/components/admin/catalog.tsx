@@ -9,6 +9,7 @@ import {
 import { Sortable } from "@/components/sortable";
 import { ActionForm, ExternalSubmit, FieldLabel, Drawer, FilterForm, Hint, SearchField, FormFooter, ImageField, Select, SubmitButton, ToggleSwitch } from "@/components/interactive";
 import { MenuImporter } from "@/components/menu-import";
+import { OptionBuilder } from "@/components/option-builder";
 import { Badge, EmptyState, PageHeader, Pagination, Panel } from "@/components/ui";
 import type { Operator } from "@/server/auth";
 import { query } from "@/server/db";
@@ -64,7 +65,7 @@ export async function ProductsSection({ operator, filters, edit, creating, page,
       </FilterForm>
       <Panel>
         {products.length ? (
-          <div className="table-wrap"><table>
+          <div className="table-wrap cards"><table>
             <thead><tr><th>Product</th><th className="hide-sm">Category</th><th className="right">Price</th><th>Stock</th><th className="hide-sm">Options</th><th>Available</th><th /></tr></thead>
             <tbody>{products.map((product) => (
               <tr key={product.id}>
@@ -73,15 +74,15 @@ export async function ProductsSection({ operator, filters, edit, creating, page,
                   <span><strong>{product.name}</strong>{product.is_best_seller || product.is_people_love_this ? <span className="cell-sub">{[product.is_best_seller && "Best seller", product.is_people_love_this && "Customer favourite"].filter(Boolean).join(" · ")}</span> : null}</span>
                 </Link></td>
                 <td className="hide-sm">{product.category_name}</td>
-                <td className="right num">{formatIdr(Number(product.price))}</td>
-                <td className="nowrap"><StockBadge stock={product.stock} /></td>
+                <td className="right num end">{formatIdr(Number(product.price))}</td>
+                <td className={`nowrap${product.stock === null ? " hide-sm" : ""}`}><StockBadge stock={product.stock} /></td>
                 <td className="hide-sm muted nowrap">{product.modifier_count ? `${product.modifier_count} group${product.modifier_count > 1 ? "s" : ""}` : "—"}</td>
-                <td>{product.availability === "hidden" ? <Badge value="hidden" /> : (
+                <td className="end">{product.availability === "hidden" ? <Badge value="hidden" /> : (
                   <ToggleSwitch action={setProductAvailabilityAction} checked={product.availability === "available"}
                     fields={{ id: product.id, availability: product.availability === "available" ? "unavailable" : "available" }}
                     label={product.availability === "available" ? `Mark ${product.name} as sold out` : `Mark ${product.name} as available`} />
                 )}</td>
-                <td className="right"><Link className="button small ghost" href={href({ edit: product.id })} scroll={false}>Edit</Link></td>
+                <td className="right hide-sm"><Link className="button small ghost" href={href({ edit: product.id })} scroll={false}>Edit</Link></td>
               </tr>
             ))}</tbody>
           </table></div>
@@ -178,6 +179,12 @@ function ProductForm({ categories, product, closeHref }: { categories: Array<{ i
           <label className="chip"><input defaultChecked={product?.is_people_love_this} name="isPeopleLoveThis" type="checkbox" /> Customer favourite</label>
         </div></div>
       </div>
+      {product ? null : (
+        <section className="form-section">
+          <h3>Options<Hint>Sizes, levels, toppings, add-ons. Each group is one choice on the tablet and the digital menu; extra prices add to the product price.</Hint></h3>
+          <OptionBuilder />
+        </section>
+      )}
     </ActionForm>
   );
 }
@@ -189,24 +196,22 @@ function ModifierEditor({ productId, groups, editing, groupHref }: { productId: 
       <Sortable label="Option groups" onReorder={reorderModifiersAction.bind(null, productId, null)} items={groups.map((group) => ({ id: group.id, name: group.name, node: (
         <div className="line-items">
           {editing === group.id ? (
-            <ActionForm action={saveModifierGroupAction} className="line-item total group-edit" successHref={groupHref()}>
+            <ActionForm action={saveModifierGroupAction} className="option-group-head group-edit" successHref={groupHref()}>
               <input name="groupId" type="hidden" value={group.id} />
-              <label className="field">Group name<input defaultValue={group.name} name="name" required /></label>
-              <label className="field">Max choices<input defaultValue={group.maxSelect} min="1" name="maxSelect" type="number" /></label>
-              <label className="chip"><input defaultChecked={group.isRequired} name="isRequired" type="checkbox" /> Required</label>
-              <div className="action-row">
+              <GroupFields group={group} />
+              <div className="group-edit-actions">
                 <Link className="button small ghost" href={groupHref()} scroll={false}>Cancel</Link>
                 <SubmitButton className="button small primary" pendingLabel="Saving…">Save group</SubmitButton>
               </div>
             </ActionForm>
           ) : (
-            <div className="line-item total">
+            <div className="line-item total group-row">
               <span>{group.name}<span className="cell-sub">{group.isRequired ? "Required" : "Optional"} · up to {group.maxSelect}</span></span>
               <span className="action-row">
-                <Link className="button small ghost" href={groupHref(group.id)} scroll={false}><Pencil size={14} /> Edit</Link>
+                <Link aria-label={`Edit ${group.name}`} className="icon-button small" href={groupHref(group.id)} scroll={false} title="Edit group"><Pencil size={15} /></Link>
                 <ActionForm action={deleteModifierGroupAction} className="inline-form" confirm={`Delete ${group.name} and its ${group.options.length} options?`} confirmLabel="Delete">
                   <input name="groupId" type="hidden" value={group.id} />
-                  <SubmitButton className="button small ghost danger"><Trash2 size={14} /> Delete</SubmitButton>
+                  <SubmitButton className="icon-button small danger"><Trash2 size={15} /><span className="sr-only">Delete {group.name}</span></SubmitButton>
                 </ActionForm>
               </span>
             </div>
@@ -233,16 +238,25 @@ function ModifierEditor({ productId, groups, editing, groupHref }: { productId: 
           </ActionForm>
         </div>
       ) }))} />
-      <ActionForm action={saveModifierGroupAction} className="form" reset>
+      <ActionForm action={saveModifierGroupAction} className="line-items option-group-new" reset>
         <input name="productId" type="hidden" value={productId} />
-        <div className="form-grid">
-          <label className="field">New group<input name="name" placeholder="e.g. Size, Sugar level" required /></label>
-          <label className="field">Max choices<input defaultValue="1" min="1" name="maxSelect" type="number" /></label>
-          <label className="chip field-wide" style={{ justifySelf: "start" }}><input name="isRequired" type="checkbox" /> Required</label>
+        <div className="option-group-head">
+          <GroupFields />
+          <SubmitButton className="button small" pendingLabel="Adding…"><Plus size={14} /> Add group</SubmitButton>
         </div>
-        <FormFooter><SubmitButton className="button">Add group</SubmitButton></FormFooter>
       </ActionForm>
     </section>
+  );
+}
+
+// Isian grup opsi yang sama untuk edit grup, tambah grup, dan OptionBuilder: nama, maksimal pilihan, wajib.
+function GroupFields({ group }: { group?: ModifierGroup }) {
+  return (
+    <>
+      <input aria-label="Group name" defaultValue={group?.name} maxLength={80} name="name" placeholder={group ? "Group name" : "New group, e.g. Size"} required />
+      <label className="input-affix option-max" title="How many options a customer can pick"><span>Max</span><input aria-label="Max choices" defaultValue={group?.maxSelect ?? 1} inputMode="numeric" min="1" name="maxSelect" type="number" /></label>
+      <label className="chip"><input defaultChecked={group ? group.isRequired : true} name="isRequired" type="checkbox" /> Required</label>
+    </>
   );
 }
 
@@ -283,7 +297,7 @@ export async function CategoriesSection({ operator, edit, creating }: { operator
               <input name="id" type="hidden" value={current.id} />
               <h3>Delete category</h3>
               <p>{current.product_count ? "Move its products out first." : "This category is empty."}</p>
-              <FormFooter><SubmitButton className="button danger">Delete category</SubmitButton></FormFooter>
+              <FormFooter>{current.product_count ? <button className="button danger" disabled type="button">Delete category</button> : <SubmitButton className="button danger">Delete category</SubmitButton>}</FormFooter>
             </ActionForm>
           ) : null}
         </Drawer>

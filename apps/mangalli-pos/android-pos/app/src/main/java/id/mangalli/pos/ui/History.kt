@@ -18,6 +18,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Print
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -52,6 +55,10 @@ fun HistoryScreen(state: PosUiState, actions: PosActions) {
     }
     val paidTotal = state.history.filter { it.paymentStatus == "completed" && it.status != "cancelled" }.sumOf { it.total }
 
+    if (LocalCompact.current) {
+        MobileHistory(state, actions, tab, { tab = it }, filter, { filter = it }, query, { query = it }, sales, selectedOrder, { selectedOrder = it }, selectedShift, { selectedShift = it })
+        return
+    }
     Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(Pos.Space4)) {
         ScreenHeader("History", "Last 7 days on this tablet · ${formatPrice(paidTotal)} paid") {
             Segmented(listOf("sales" to "Sales", "shifts" to "Shifts"), tab, { tab = it }, modifier = Modifier.width(240.dp), height = Pos.Control)
@@ -108,7 +115,7 @@ fun HistoryScreen(state: PosUiState, actions: PosActions) {
                 if (tab == "sales") {
                     val order = state.history.firstOrNull { it.localUuid == selectedOrder }
                     if (order == null) EmptyState("Select a transaction", modifier = Modifier.fillMaxSize())
-                    else OrderHistoryDetail(order, actions)
+                    else OrderHistoryDetail(order, state.cashierName(order), actions)
                 } else {
                     val shift = state.shifts.firstOrNull { it.localUuid == selectedShift }
                     if (shift == null) EmptyState("Select a shift", modifier = Modifier.fillMaxSize())
@@ -117,6 +124,93 @@ fun HistoryScreen(state: PosUiState, actions: PosActions) {
             }
         }
     }
+}
+
+// Ponsel: daftar ListItem Material; detail transaksi atau shift dibuka sebagai bottom sheet.
+@Composable
+private fun MobileHistory(
+    state: PosUiState, actions: PosActions,
+    tab: String, onTab: (String) -> Unit, filter: String, onFilter: (String) -> Unit, query: String, onQuery: (String) -> Unit,
+    sales: List<LocalOrderEntity>, selectedOrder: String?, onOrder: (String?) -> Unit, selectedShift: String?, onShift: (String?) -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(Pos.Space3)) {
+        Segmented(listOf("sales" to "Sales", "shifts" to "Shifts"), tab, onTab, modifier = Modifier.fillMaxWidth())
+        if (tab == "sales") {
+            SearchField(query, onQuery, "Search code, table, or name", modifier = Modifier.fillMaxWidth())
+            Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Pos.Space2)) {
+                listOf("all" to "All", "paid" to "Paid", "unpaid" to "Unpaid", "cancelled" to "Cancelled").forEach { (key, label) ->
+                    ChoiceChip(label, selected = filter == key, onClick = { onFilter(key) })
+                }
+            }
+        }
+        PosCard(modifier = Modifier.weight(1f).fillMaxWidth(), padding = PaddingValues(0.dp)) {
+            if (tab == "sales") {
+                if (sales.isEmpty()) EmptyState("No transactions", modifier = Modifier.fillMaxSize())
+                else LazyColumn(modifier = Modifier.fillMaxSize()) {
+                    items(sales, key = { it.localUuid }) { order ->
+                        MobileHistoryItem(
+                            title = "${order.code()} · ${order.contextLabel()}",
+                            subtitle = "${dateTimeLabel(order.createdAtMillis)} · ${paymentMethodLabel(order.paymentMethod.takeIf { order.paymentStatus == "completed" })}",
+                            amount = formatPrice(order.total),
+                            pill = when {
+                                order.status == "cancelled" -> "Cancelled" to Tone.Danger
+                                order.paymentStatus == "completed" -> "Paid" to Tone.Success
+                                else -> "Unpaid" to Tone.Warning
+                            },
+                            onClick = { onOrder(order.localUuid) },
+                        )
+                    }
+                }
+            } else {
+                if (state.shifts.isEmpty()) EmptyState("No shifts yet", modifier = Modifier.fillMaxSize())
+                else LazyColumn(modifier = Modifier.fillMaxSize()) {
+                    items(state.shifts, key = { it.localUuid }) { shift ->
+                        val difference = shift.actualCash?.let { it - expectedCashOf(shift, state) }
+                        MobileHistoryItem(
+                            title = "${shift.businessDate} · ${shift.closedByName ?: shift.openedByName ?: "Cashier"}",
+                            subtitle = "${clockLabel(shift.openedAtMillis)} – ${if (shift.closedAtMillis == null) "now" else clockLabel(shift.closedAtMillis)}",
+                            amount = difference?.let { signedPrice(it) } ?: "",
+                            pill = if (shift.status == "open") "Open" to Tone.Success else "Closed" to Tone.Neutral,
+                            onClick = { onShift(shift.localUuid) },
+                        )
+                    }
+                }
+            }
+        }
+    }
+    state.history.firstOrNull { it.localUuid == selectedOrder }?.let { order ->
+        PosDialog(onDismiss = { onOrder(null) }) {
+            DialogHeader("${order.code()} · ${order.contextLabel()}", "${if (order.source == "menu") "Digital menu" else "Cashier"} · ${dateTimeLabel(order.createdAtMillis)} · ${if (order.dirty) "waiting to sync" else "synced"}", onClose = { onOrder(null) })
+            Column(modifier = Modifier.weight(1f, fill = false)) { OrderSummary(order, state.cashierName(order)) }
+            if (order.paymentStatus == "completed" && order.status != "cancelled") {
+                DialogFooter { PosButton("Reprint receipt", onClick = { actions.printOrderReceipt(order.localUuid) }, variant = ButtonVariant.Secondary, icon = Icons.Outlined.Print) }
+            }
+        }
+    }
+    state.shifts.firstOrNull { it.localUuid == selectedShift }?.let { shift ->
+        PosDialog(onDismiss = { onShift(null) }) {
+            DialogHeader("Shift ${shift.businessDate}", "Opened by ${shift.openedByName ?: "—"}" + (shift.closedByName?.let { " · closed by $it" } ?: ""), onClose = { onShift(null) })
+            DialogBody(Pos.Space3) { ShiftNumbers(shift, state) }
+            if (shift.status == "closed") DialogFooter { PosButton("Print report", onClick = { actions.printShiftReport(shift.localUuid) }, variant = ButtonVariant.Secondary, icon = Icons.Outlined.Print) }
+        }
+    }
+}
+
+@Composable
+private fun MobileHistoryItem(title: String, subtitle: String, amount: String, pill: Pair<String, Tone>, onClick: () -> Unit) {
+    ListItem(
+        headlineContent = { Text(title, style = PosType.Label, color = Pos.Ink, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        supportingContent = { Text(subtitle, style = PosType.Caption, color = Pos.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        trailingContent = {
+            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                if (amount.isNotBlank()) Text(amount, style = PosType.Label, color = Pos.Ink)
+                Pill(pill.first, pill.second)
+            }
+        },
+        colors = ListItemDefaults.colors(containerColor = Pos.Surface),
+        modifier = Modifier.clickable(onClick = onClick),
+    )
+    HorizontalLine(modifier = Modifier.padding(start = Pos.Space4))
 }
 
 @Composable
@@ -144,7 +238,7 @@ private fun HistoryRow(title: String, subtitle: String, amount: String, pill: Pa
 }
 
 @Composable
-private fun OrderHistoryDetail(order: LocalOrderEntity, actions: PosActions) {
+private fun OrderHistoryDetail(order: LocalOrderEntity, cashier: String?, actions: PosActions) {
     Column(modifier = Modifier.fillMaxSize()) {
         Row(modifier = Modifier.padding(Pos.Space5), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Pos.Space3)) {
             Column(modifier = Modifier.weight(1f)) {
@@ -161,14 +255,12 @@ private fun OrderHistoryDetail(order: LocalOrderEntity, actions: PosActions) {
             }
         }
         HorizontalLine()
-        OrderSummary(order)
+        OrderSummary(order, cashier)
     }
 }
 
 @Composable
 private fun ShiftDetail(shift: LocalShiftEntity, state: PosUiState, actions: PosActions) {
-    val orders = state.history.filter { it.shiftLocalUuid == shift.localUuid }
-    val summary = shiftSummaryOf(shift, orders)
     Column(modifier = Modifier.fillMaxSize()) {
         Row(modifier = Modifier.padding(Pos.Space5), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Pos.Space3)) {
             Column(modifier = Modifier.weight(1f)) {
@@ -184,25 +276,32 @@ private fun ShiftDetail(shift: LocalShiftEntity, state: PosUiState, actions: Pos
         }
         HorizontalLine()
         Column(modifier = Modifier.verticalScroll(rememberScrollState()).padding(Pos.Space6), verticalArrangement = Arrangement.spacedBy(Pos.Space3)) {
-            KeyValue("Opening cash", formatPrice(shift.openingCash))
-            KeyValue("Cash sales", formatPrice(summary.cashSales))
-            KeyValue("Non-cash sales", formatPrice(summary.nonCashSales))
-            KeyValue("Paid orders", summary.orderCount.toString())
-            KeyValue("Cancelled orders", summary.cancelledCount.toString())
-            HorizontalLine()
-            KeyValue("Expected cash", formatPrice(summary.expectedCash), emphasize = true)
-            shift.actualCash?.let { counted ->
-                KeyValue("Counted cash", formatPrice(counted))
-                val difference = counted - summary.expectedCash
-                KeyValue("Difference", signedPrice(difference), valueColor = if (difference == 0.0) Pos.Success else if (difference < 0) Pos.Danger else Pos.Warning)
-            }
-            if (shift.closedAtMillis != null) KeyValue("Closed", dateTimeLabel(shift.closedAtMillis))
+            ShiftNumbers(shift, state)
         }
     }
 }
 
+// Angka shift untuk detail tablet dan bottom sheet ponsel (ditaruh di kolom pemanggil).
+@Composable
+private fun ShiftNumbers(shift: LocalShiftEntity, state: PosUiState) {
+    val summary = state.summaryOf(shift)
+    KeyValue("Opening cash", formatPrice(shift.openingCash))
+    KeyValue("Cash sales", formatPrice(summary.cashSales))
+    KeyValue("Non-cash sales", formatPrice(summary.nonCashSales))
+    KeyValue("Paid orders", summary.orderCount.toString())
+    KeyValue("Cancelled orders", summary.cancelledCount.toString())
+    HorizontalLine()
+    KeyValue("Expected cash", formatPrice(summary.expectedCash), emphasize = true)
+    shift.actualCash?.let { counted ->
+        KeyValue("Counted cash", formatPrice(counted))
+        val difference = counted - summary.expectedCash
+        KeyValue("Difference", signedPrice(difference), valueColor = if (difference == 0.0) Pos.Success else if (difference < 0) Pos.Danger else Pos.Warning)
+    }
+    if (shift.closedAtMillis != null) KeyValue("Closed", dateTimeLabel(shift.closedAtMillis))
+}
+
 private fun expectedCashOf(shift: LocalShiftEntity, state: PosUiState): Double =
-    shiftSummaryOf(shift, state.history.filter { it.shiftLocalUuid == shift.localUuid }).expectedCash
+    state.summaryOf(shift).expectedCash
 
 fun signedPrice(value: Double): String = when {
     value > 0 -> "+${formatPrice(value)}"

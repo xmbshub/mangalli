@@ -48,6 +48,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -64,10 +66,21 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import id.mangalli.pos.R
+import id.mangalli.pos.offline.OpeningHours
+import kotlinx.coroutines.delay
 
-// Akar UI tablet. Tanpa kasir yang masuk, hanya layar masuk yang tampil.
+// Akar UI. Ponsel (sisi terpendek < 600 dp) memakai kerangka MobileApp; tablet
+// memakai rail di kiri. Tanpa kasir yang masuk, hanya layar masuk yang tampil.
 @Composable
 fun PosApp(state: PosUiState, actions: PosActions) {
+    val compact = androidx.compose.ui.platform.LocalConfiguration.current.smallestScreenWidthDp < 600
+    androidx.compose.runtime.CompositionLocalProvider(LocalCompact provides compact) {
+        if (compact) MobileApp(state, actions) else TabletApp(state, actions)
+    }
+}
+
+@Composable
+private fun TabletApp(state: PosUiState, actions: PosActions) {
     Box(modifier = Modifier.fillMaxSize().background(Pos.Canvas)) {
         if (state.currentStaff == null) {
             SignInScreen(state, actions)
@@ -78,6 +91,7 @@ fun PosApp(state: PosUiState, actions: PosActions) {
                 NavRail(state, actions)
                 Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
                 clockDriftLabel(state.operations.clockOffsetMillis)?.let { drift -> ClockWarning(drift) }
+                ShiftReminders(state, actions)
                 state.update?.takeIf { !it.required && !it.dismissed && !it.open }?.let { UpdateBanner(it, actions) }
                 Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                     AnimatedContent(
@@ -203,7 +217,7 @@ private fun RailItem(icon: ImageVector, label: String, selected: Boolean, badge:
 // Status koneksi dan sinkron di rail: titik hijau/abu, jumlah perubahan yang
 // belum terkirim, dan ikon berputar saat sinkron berjalan. Ketuk untuk sinkron.
 @Composable
-private fun SyncButton(operations: OperationsState, onSync: () -> Unit) {
+internal fun SyncButton(operations: OperationsState, onSync: () -> Unit) {
     val spin = rememberInfiniteTransition(label = "sync-spin")
     val angle by spin.animateFloat(0f, 360f, infiniteRepeatable(tween(900, easing = LinearEasing), RepeatMode.Restart), label = "sync-angle")
     Column(
@@ -235,15 +249,45 @@ private fun SyncButton(operations: OperationsState, onSync: () -> Unit) {
     }
 }
 
+// Pengingat shift (permintaan owner 14 Okt 2026): shift yang masih terbuka 2 jam
+// lewat jam tutup outlet, dan pesanan menu digital yang menunggu padahal belum ada
+// shift. Hanya pengingat; penjualan kasir tidak pernah dikunci oleh jam buka.
+@Composable
+internal fun ShiftReminders(state: PosUiState, actions: PosActions, padding: Modifier = Modifier.padding(start = Pos.Space4, end = Pos.Space4, top = Pos.Space4)) {
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(60_000)
+            now = System.currentTimeMillis()
+        }
+    }
+    if (state.screen == Screen.Shift) return
+    // Di layar Menu, banner "shift ditutup" milik Menu sudah menyebut pesanan yang menunggu.
+    val shift = state.operations.shift?.takeIf { it.status == "open" }
+    val overdue = shift?.let { OpeningHours.shiftOverdue(state.outlet.openingHours, it.openedAtMillis, now, state.outlet.zone) }
+    if (overdue != null) {
+        val ago = if (overdue < 120) "$overdue min" else "${overdue / 60} h"
+        InfoBanner("The store closed $ago ago and this shift is still open. Close it so each day's cash is counted on its own.", tone = Tone.Warning, modifier = padding) {
+            PosButton("Close shift", onClick = { actions.navigate(Screen.Shift) }, size = ButtonSize.Small)
+        }
+    }
+    val waiting = state.menuOrdersWithoutShift
+    if (waiting > 0 && state.screen != Screen.Menu) {
+        InfoBanner("$waiting digital menu order${if (waiting > 1) "s are" else " is"} waiting and no shift is open. Open a shift to take payment.", tone = Tone.Warning, modifier = padding) {
+            PosButton("Open shift", onClick = { actions.navigate(Screen.Shift) }, size = ButtonSize.Small)
+        }
+    }
+}
+
 // Jam tablet yang salah membuat waktu pesanan, tanggal shift, dan jadwal
 // sinkron salah. Diperiksa dari jam server tiap kali tablet online.
 @Composable
-private fun ClockWarning(drift: String) {
+internal fun ClockWarning(drift: String, modifier: Modifier = Modifier.padding(start = Pos.Space4, end = Pos.Space4, top = Pos.Space4)) {
     val context = LocalContext.current
     InfoBanner(
-        "This tablet's clock is $drift. Order times, shift dates, and sync times will be wrong.",
+        "This ${deviceNoun()}'s clock is $drift. Order times, shift dates, and sync times will be wrong.",
         tone = Tone.Warning,
-        modifier = Modifier.padding(start = Pos.Space4, end = Pos.Space4, top = Pos.Space4),
+        modifier = modifier,
     ) {
         PosButton("Fix clock", onClick = {
             runCatching { context.startActivity(Intent(Settings.ACTION_DATE_SETTINGS)) }

@@ -5,7 +5,7 @@ import type { Operator } from "./auth";
 import { menuMode } from "./branches";
 import { pool, query } from "./db";
 import { MAX_MENU_TEXT, readMenu } from "./menu-import";
-import { formatDate } from "./format";
+import { formatDate, outletFormat } from "./format";
 import { buildPdf, type PdfSection } from "./pdf";
 import { formatIdr } from "./pos";
 import { loadPromotions } from "./promotions";
@@ -65,7 +65,7 @@ async function listOrders(operator: Operator, args: ToolArgs) {
   const data = await ordersData(operator, { tab, search: str(args.search), from: range.from, to: range.to, sort: "newest", page: 1, pageSize: limit });
   return {
     total: data.total,
-    orders: data.rows.map((row) => ({ id: row.id, code: row.order_code, createdAt: row.created_at, type: row.order_mode, table: row.table_label, customer: row.customer_name, status: row.restaurant_status, payment: row.payment_status, method: row.payment_method, total: Number(row.amount ?? 0) })),
+    orders: data.rows.map((row) => ({ id: row.id, code: row.order_code, createdAt: row.created_at, type: row.order_mode, table: row.table_label, customer: row.customer_name, status: row.restaurant_status, payment: row.payment_status, method: row.payment_method, cashier: row.cashier_name, total: Number(row.amount ?? 0) })),
   };
 }
 
@@ -131,10 +131,22 @@ async function listAudit(operator: Operator, args: ToolArgs) {
 
 // ---------- File laporan ----------
 
+type Cell = string | number | null;
 type Block =
-  | { kind: "kv"; heading: string; rows: Array<[string, number | string, CellKind?]>; note?: string }
-  | { kind: "table"; heading: string; columns: Array<{ header: string; kind?: CellKind; width?: number }>; rows: Array<Array<string | number | null>>; note?: string };
+  | { kind: "stats"; items: Array<{ label: string; value: number; kind: CellKind; hint?: string }> }
+  | { kind: "kv"; heading: string; rows: Array<[string, number | string, CellKind?, "strong"?]>; note?: string }
+  | { kind: "table"; heading: string; columns: Array<{ header: string; kind?: CellKind; width?: number }>; rows: Cell[][]; total?: Cell[]; note?: string };
 type ReportDoc = { title: string; subtitle: string; blocks: Block[] };
+
+// Label yang sama dengan dashboard (components/ui.tsx), supaya file tidak berisi kode mentah.
+const statusLabel: Record<string, string> = {
+  pending_payment: "Awaiting payment", new: "New", accepted: "Accepted", preparing: "Preparing", ready: "Ready", completed: "Completed", cancelled: "Cancelled",
+  available: "Available", unavailable: "Sold out", hidden: "Hidden", open: "Open", closed: "Closed",
+};
+const methodLabel: Record<string, string> = { cash: "Cash", qris: "QRIS", midtrans: "Midtrans", cashier: "Pay at cashier", card: "Card", edc: "Card", transfer: "Transfer", other: "Other" };
+const paymentText = (payment: string | null, method: string | null) =>
+  payment === "completed" ? methodLabel[method ?? ""] ?? method ?? "Paid" : payment === "refunded" ? "Refunded" : payment === "pending" || !payment ? "Unpaid" : statusLabel[payment] ?? payment;
+const sum = (rows: Cell[][], index: number) => rows.reduce((total, row) => total + (typeof row[index] === "number" ? (row[index] as number) : 0), 0);
 
 export const reportKinds = ["summary", "profit_loss", "sales_by_day", "products", "orders", "expenses", "shifts", "stock"] as const;
 type ReportKind = (typeof reportKinds)[number];
@@ -148,64 +160,84 @@ async function reportDoc(operator: Operator, kind: ReportKind, args: ToolArgs): 
     const products = await productsData(operator);
     return { title: "Stock", subtitle: `${outlet} · ${new Date().toLocaleDateString("en-GB", { timeZone: operator.timezone, day: "numeric", month: "short", year: "numeric" })}`, blocks: [
       { kind: "table", heading: "Products", columns: [{ header: "Product", width: 3 }, { header: "Category", width: 2 }, { header: "Status" }, { header: "Stock left", kind: "number" }],
-        rows: products.products.map((product) => [product.name, product.category_name, product.availability, product.stock]), note: "Empty stock means the product is not tracked." },
+        rows: products.products.map((product) => [product.name, product.category_name, statusLabel[product.availability] ?? product.availability, product.stock]), note: "Empty stock means the product is not tracked." },
     ] };
   }
   if (kind === "orders") {
-    const result = await query<{ code: string; at: string; mode: string; table_label: string | null; customer: string | null; status: string; method: string | null; payment: string | null; total: number }>(
-      `SELECT o.order_code AS code, to_char(o.created_at AT TIME ZONE $4, 'YYYY-MM-DD HH24:MI') AS at, o.order_mode AS mode, o.table_label, o.customer_name AS customer,
+    const result = await query<{ code: string; at: Date; mode: string; table_label: string | null; customer: string | null; cashier: string | null; status: string; method: string | null; payment: string | null; total: number }>(
+      `SELECT o.order_code AS code, o.created_at AS at, o.order_mode AS mode, o.table_label, o.customer_name AS customer, u.name AS cashier,
               o.restaurant_status AS status, p.payment_method AS method, p.status AS payment, coalesce(p.amount, 0)::float AS total
-         FROM orders o LEFT JOIN payments p ON p.order_id = o.id
+         FROM orders o LEFT JOIN payments p ON p.order_id = o.id LEFT JOIN users u ON u.id = o.cashier_id
         WHERE o.outlet_key = $1 AND o.created_at >= (($2::date)::timestamp AT TIME ZONE $4) AND o.created_at < ((($3::date) + 1)::timestamp AT TIME ZONE $4)
         ORDER BY o.created_at LIMIT 5000`, [operator.outletKey, range.from, range.to, operator.timezone]);
-    return { title: "Orders", subtitle, blocks: [{ kind: "table", heading: "Orders", columns: [{ header: "Code" }, { header: "Date & time", width: 1.4 }, { header: "Type" }, { header: "Table" }, { header: "Customer", width: 1.3 }, { header: "Status" }, { header: "Payment" }, { header: "Total", kind: "money", width: 1.2 }],
-      rows: result.rows.map((row) => [row.code, row.at, row.mode === "dinein" ? "Dine in" : "Takeaway", row.table_label, row.customer, row.status, row.payment === "completed" ? row.method ?? "paid" : row.payment ?? "unpaid", row.total]) }] };
+    const when = (at: Date) => outletFormat(operator.timezone).formatDateTime(at, true);
+    const rows: Cell[][] = result.rows.map((row) => [row.code, when(row.at), row.mode === "dinein" ? `Dine in${row.table_label ? ` · ${row.table_label.replace(/^Dine In - /i, "Table ")}` : ""}` : "Takeaway", row.customer, row.cashier, statusLabel[row.status] ?? row.status, paymentText(row.payment, row.method), row.total]);
+    const counted = result.rows.map((row, index) => (row.payment === "completed" && row.status !== "cancelled" ? rows[index] : null)).filter((row): row is Cell[] => row !== null);
+    return { title: "Orders", subtitle, blocks: [{ kind: "table", heading: "Orders",
+      columns: [{ header: "Code" }, { header: "Date & time" }, { header: "Service", width: 1.4 }, { header: "Customer", width: 1.4 }, { header: "Cashier", width: 1.2 }, { header: "Status" }, { header: "Payment" }, { header: "Total", kind: "money" }],
+      rows, total: [`${result.rows.length} orders`, null, null, null, null, null, "Paid", sum(counted, 7)], note: "The total counts paid orders only; cancelled and unpaid orders are listed but not added up." }] };
   }
   if (kind === "expenses") {
     const data = await listExpenses(operator, args);
     return { title: "Expenses", subtitle, blocks: [
-      { kind: "table", heading: "Recorded expenses", columns: [{ header: "Date" }, { header: "Category", width: 2 }, { header: "Note", width: 2.5 }, { header: "Amount", kind: "money", width: 1.2 }], rows: data.expenses.map((row) => [row.date, row.category, row.note, row.amount]) },
-      { kind: "table", heading: "Cash out at the tablet", columns: [{ header: "When", width: 1.4 }, { header: "Reason", width: 3 }, { header: "Amount", kind: "money", width: 1.2 }],
-        rows: data.tabletCashOut.map((row) => [new Date(row.at).toLocaleString("en-GB", { timeZone: operator.timezone, day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }), row.reason, row.amount]) },
+      { kind: "table", heading: "Recorded expenses", columns: [{ header: "Date", kind: "date" }, { header: "Category", width: 2 }, { header: "Note", width: 2.5 }, { header: "Amount", kind: "money" }],
+        rows: data.expenses.map((row) => [row.date, row.category, row.note, row.amount]), total: ["Total", null, null, data.expenses.reduce((total, row) => total + row.amount, 0)] },
+      { kind: "table", heading: "Cash out at the tablet", columns: [{ header: "When" }, { header: "Reason", width: 3 }, { header: "Amount", kind: "money" }],
+        rows: data.tabletCashOut.map((row) => [outletFormat(operator.timezone).formatDateTime(row.at, true), row.reason, row.amount]),
+        total: ["Total", null, data.tabletCashOut.reduce((total, row) => total + row.amount, 0)] },
     ] };
   }
   if (kind === "shifts") {
     const data = await listShifts(operator, args);
-    return { title: "Shifts", subtitle, blocks: [{ kind: "table", heading: "Shifts", columns: [{ header: "Date" }, { header: "Opened by", width: 1.3 }, { header: "Closed by", width: 1.3 }, { header: "Orders", kind: "number" }, { header: "Cash sales", kind: "money", width: 1.2 }, { header: "Expected", kind: "money", width: 1.2 }, { header: "Counted", kind: "money", width: 1.2 }, { header: "Difference", kind: "money", width: 1.2 }],
-      rows: data.shifts.map((row) => [row.date as string, row.opened_by as string, row.closed_by as string, row.orders as number, row.cash_sales as number, row.expected_cash as number, row.counted_cash as number, row.difference as number]) }] };
+    const rows: Cell[][] = data.shifts.map((row) => [row.date as string, row.opened_by as string, (row.closed_by as string | null) ?? (row.status === "open" ? "Still open" : null), row.orders as number, row.cash_sales as number, row.digital_sales as number, row.expected_cash as number, row.counted_cash as number | null, row.status === "open" ? null : row.difference as number]);
+    return { title: "Shifts", subtitle, blocks: [{ kind: "table", heading: "Shifts", columns: [{ header: "Date", kind: "date" }, { header: "Opened by" }, { header: "Closed by" }, { header: "Orders", kind: "number" }, { header: "Cash sales", kind: "money" }, { header: "Digital sales", kind: "money" }, { header: "Expected cash", kind: "money" }, { header: "Counted", kind: "money" }, { header: "Difference", kind: "money" }],
+      rows, total: [`${rows.length} shifts`, null, null, sum(rows, 3), sum(rows, 4), sum(rows, 5), null, null, sum(rows, 8)], note: "Difference = counted cash minus expected cash. A minus means the drawer was short." }] };
   }
   const data = await reportPack(operator, range);
-  const daily: Block = { kind: "table", heading: "Sales by day", columns: [{ header: "Date" }, { header: "Orders", kind: "number" }, { header: "Sales", kind: "money", width: 1.3 }, { header: "Tax", kind: "money", width: 1.2 }, { header: "Collected", kind: "money", width: 1.3 }, { header: "Gross profit", kind: "money", width: 1.3 }],
-    rows: data.daily.filter((day) => day.orders).map((day) => [day.day, day.orders, round(day.net), round(day.tax), round(day.collected), data.hasCosts ? round(day.profit) : null]) };
-  const products: Block = { kind: "table", heading: "Products", columns: [{ header: "Product", width: 3 }, { header: "Category", width: 1.8 }, { header: "Sold", kind: "number" }, { header: "Sales", kind: "money", width: 1.3 }, { header: "Cost", kind: "money", width: 1.2 }, { header: "Profit", kind: "money", width: 1.2 }],
-    rows: data.products.map((item) => [item.name, item.category, item.qty, round(item.revenue), item.cost === null ? null : round(item.cost), item.profit === null ? null : round(item.profit)]) };
+  const dailyRows: Cell[][] = data.daily.filter((day) => day.orders).map((day) => [day.day, day.orders, round(day.net), round(day.tax), round(day.collected), data.hasCosts ? round(day.profit) : null]);
+  const daily: Block = { kind: "table", heading: "Sales by day", columns: [{ header: "Date", kind: "date" }, { header: "Orders", kind: "number" }, { header: "Sales", kind: "money" }, { header: "Tax", kind: "money" }, { header: "Collected", kind: "money" }, { header: "Gross profit", kind: "money" }],
+    rows: dailyRows, total: ["Total", sum(dailyRows, 1), sum(dailyRows, 2), sum(dailyRows, 3), sum(dailyRows, 4), data.hasCosts ? sum(dailyRows, 5) : null], note: "Sales are after discounts and without tax. Collected = sales + tax." };
+  const productRows: Cell[][] = data.products.map((item) => [item.name, item.category, item.qty, round(item.revenue), item.cost === null ? null : round(item.cost), item.profit === null ? null : round(item.profit)]);
+  const products: Block = { kind: "table", heading: "Products", columns: [{ header: "Product", width: 2.4 }, { header: "Category", width: 1.4 }, { header: "Sold", kind: "number" }, { header: "Sales", kind: "money" }, { header: "Cost", kind: "money" }, { header: "Profit", kind: "money" }],
+    rows: productRows, total: ["Total", null, sum(productRows, 2), sum(productRows, 3), sum(productRows, 4), sum(productRows, 5)], note: `Product sales are before order discounts.${data.hasCosts ? " Products without a cost show no cost or profit." : " Add product costs to see profit."}` };
   const pnl: Block = { kind: "kv", heading: "Profit & loss", rows: [
-    ["Sales before discounts", round(data.money.gross), "money"], ["Discounts", -round(data.money.discounts), "money"], ["Sales", round(data.money.net), "money"],
-    ...(data.hasCosts ? [["Cost of items sold", -round(data.money.cost), "money"], ["Gross profit", round(data.grossProfit), "money"]] as Array<[string, number, CellKind]> : []),
+    ["Sales before discounts", round(data.money.gross), "money"], ["Discounts", -round(data.money.discounts), "money"], ["Sales", round(data.money.net), "money", "strong"],
+    ...(data.hasCosts ? [["Cost of items sold", -round(data.money.cost), "money"], ["Gross profit", round(data.grossProfit), "money", "strong"]] as Array<[string, number, CellKind, "strong"?]> : []),
     ...data.expenses.map((item) => [item.label, -round(item.total), "money"] as [string, number, CellKind]),
-    ...(data.hasCosts ? [["Net profit", round(data.netProfit), "money"]] as Array<[string, number, CellKind]> : []),
+    ...(data.hasCosts ? [["Net profit", round(data.netProfit), "money", "strong"]] as Array<[string, number, CellKind, "strong"]> : []),
     ["Tax collected (not income)", round(data.money.tax), "money"], ["Paid orders", data.money.orders, "number"],
   ], note: data.hasCosts ? `Costs cover ${Math.round(data.costCoverage * 100)}% of sales.` : "Add product costs to see profit." };
+  const change = (now: number, before: number) => (before > 0 ? `${now >= before ? "+" : ""}${Math.round(((now - before) / before) * 100)}% vs previous period` : undefined);
+  const stats: Block = { kind: "stats", items: [
+    { label: "Sales", value: round(data.money.net), kind: "money", hint: change(data.money.net, data.prev.net) },
+    { label: "Paid orders", value: data.money.orders, kind: "number", hint: change(data.money.orders, data.prev.orders) },
+    { label: "Average order", value: data.money.orders ? round(data.money.net / data.money.orders) : 0, kind: "money" },
+    data.hasCosts ? { label: "Net profit", value: round(data.netProfit), kind: "money" } : { label: "Tax collected", value: round(data.money.tax), kind: "money" },
+  ] };
   if (kind === "sales_by_day") return { title: "Sales by day", subtitle, blocks: [daily] };
   if (kind === "products") return { title: "Product sales", subtitle, blocks: [products] };
-  if (kind === "profit_loss") return { title: "Profit & loss", subtitle, blocks: [pnl, daily] };
-  return { title: "Sales report", subtitle, blocks: [pnl, daily, products] };
+  if (kind === "profit_loss") return { title: "Profit & loss", subtitle, blocks: [stats, pnl, daily] };
+  return { title: "Sales report", subtitle, blocks: [stats, pnl, daily, products] };
 }
 
 const money = (value: number) => (value < 0 ? `- ${formatIdr(-value)}` : formatIdr(value));
-const cellText = (value: string | number | null, kind?: CellKind) => (value === null ? "" : typeof value === "number" ? (kind === "money" ? money(value) : kind === "percent" ? `${Math.round(value * 100)}%` : value.toLocaleString("id-ID")) : value);
+const cellText = (value: Cell, kind?: CellKind) => (value === null ? "" : typeof value === "number" ? (kind === "money" ? money(value) : kind === "percent" ? `${Math.round(value * 100)}%` : value.toLocaleString("id-ID")) : kind === "date" && /^\d{4}-\d{2}-\d{2}$/.test(value) ? formatDate(value, true) : value);
 
-function render(doc: ReportDoc, format: "xlsx" | "pdf"): Buffer {
+function render(doc: ReportDoc, format: "xlsx" | "pdf", generated: string): Buffer {
   if (format === "xlsx") {
-    const sheets: Sheet[] = doc.blocks.map((block) => block.kind === "kv"
-      ? { name: block.heading, columns: [{ header: "Item" }, { header: "Amount", kind: block.rows.some((row) => row[2] === "money") ? "money" : "number" }], rows: block.rows.map(([label, value]) => [label, value]) }
-      : { name: block.heading, columns: block.columns.map((column) => ({ header: column.header, kind: column.kind })), rows: block.rows });
+    const sheets: Sheet[] = doc.blocks.flatMap((block): Sheet[] => block.kind === "stats" ? []
+      : block.kind === "kv"
+        ? [{ name: block.heading, columns: [{ header: "Item" }, { header: "Amount", kind: block.rows.some((row) => row[2] === "money") ? "money" : "number" }], rows: block.rows.map(([label, value]) => [label, value]) }]
+        : [{ name: block.heading, columns: block.columns.map((column) => ({ header: column.header, kind: column.kind })), rows: block.total && block.rows.length ? [...block.rows, block.total] : block.rows }]);
     return buildXlsx(sheets);
   }
-  const sections: PdfSection[] = doc.blocks.map((block) => block.kind === "kv"
-    ? { kind: "kv", heading: block.heading, rows: block.rows.map(([label, value, kind]) => [label, cellText(value, kind)]), note: block.note }
-    : { kind: "table", heading: block.heading, note: block.note, columns: block.columns.map((column) => ({ header: column.header, width: column.width, align: column.kind && column.kind !== "text" && column.kind !== "date" ? "right" : "left" })), rows: block.rows.map((row) => row.map((value, index) => cellText(value, block.columns[index]?.kind))) });
-  return buildPdf({ title: doc.title, subtitle: doc.subtitle, sections });
+  const sections: PdfSection[] = doc.blocks.map((block): PdfSection => block.kind === "stats"
+    ? { kind: "stats", items: block.items.map((item) => ({ label: item.label, value: cellText(item.value, item.kind), hint: item.hint })) }
+    : block.kind === "kv"
+      ? { kind: "kv", heading: block.heading, rows: block.rows.map(([label, value, kind, tone]) => (tone ? [label, cellText(value, kind), tone] : [label, cellText(value, kind)])), note: block.note }
+      : { kind: "table", heading: block.heading, note: block.note, columns: block.columns.map((column) => ({ header: column.header, width: column.width, align: column.kind && column.kind !== "text" && column.kind !== "date" ? "right" : "left" })),
+        rows: block.rows.map((row) => row.map((value, index) => cellText(value, block.columns[index]?.kind))), total: block.total?.map((value, index) => cellText(value, block.columns[index]?.kind)) });
+  return buildPdf({ title: doc.title, subtitle: doc.subtitle, generated, sections });
 }
 
 async function createReportFile(operator: Operator, args: ToolArgs) {
@@ -214,7 +246,8 @@ async function createReportFile(operator: Operator, args: ToolArgs) {
   // Model kadang menulis "PDF" atau "excel"; huruf besar-kecil tidak berpengaruh.
   const format = /pdf/i.test(str(args.format, 10)) ? "pdf" : "xlsx";
   const doc = await reportDoc(operator, kind, args);
-  const file = render(doc, format);
+  const generated = `Generated ${outletFormat(operator.timezone).formatDateTime(new Date(), true)} by ${operator.name}`;
+  const file = render(doc, format, generated);
   const name = `${doc.title} ${doc.subtitle.split(" · ").slice(1).join(" ")}`.replace(/[^\w\s.&–-]+/g, "").replace(/\s+/g, " ").trim() + `.${format}`;
   await query("DELETE FROM assistant_files WHERE created_at < now() - interval '7 days'");
   const saved = await query<{ id: string }>(
@@ -253,8 +286,8 @@ async function prepareMenuDraft(operator: Operator, args: ToolArgs) {
 
 const tools: Tool[] = [
   { roles: management, status: "Reading the sales report", spec: { name: "get_sales_report", description: "Sales, discounts, tax, profit (when product costs are set), expenses, channels, order types, payment methods, top products, categories, products with no sales, busiest times, refunds, voids and cash drawer results for a date range, with the previous period of the same length for comparison. Use this for any question about sales, income, profit or performance.", parameters: { type: "object", properties: { from: dateArg, to: dateArg } } }, run: salesReport },
-  { roles: operations, status: "Looking up orders", spec: { name: "list_orders", description: "Orders from the tablet and the digital menu, newest first, with status, payment and total. Filter by date range, status (all, unpaid, active, completed, cancelled) and search (order code, customer, table).", parameters: { type: "object", properties: { from: dateArg, to: dateArg, status: { type: "string", enum: ["all", "unpaid", "active", "completed", "cancelled"] }, search: { type: "string" }, limit: { type: "integer", minimum: 1, maximum: 50 } } } }, run: listOrders },
-  { roles: operations, status: "Opening the order", spec: { name: "get_order", description: "One order with its items, options, notes, discount and payment, by order code.", parameters: { type: "object", properties: { code: { type: "string" } }, required: ["code"] } }, run: getOrder },
+  { roles: operations, status: "Looking up orders", spec: { name: "list_orders", description: "Orders from the tablet and the digital menu, newest first, with status, payment, cashier and total. Filter by date range, status (all, unpaid, active, completed, cancelled) and search (order code, customer, table, cashier name).", parameters: { type: "object", properties: { from: dateArg, to: dateArg, status: { type: "string", enum: ["all", "unpaid", "active", "completed", "cancelled"] }, search: { type: "string" }, limit: { type: "integer", minimum: 1, maximum: 50 } } } }, run: listOrders },
+  { roles: operations, status: "Opening the order", spec: { name: "get_order", description: "One order with its items, options, notes, discount, payment, the cashier who served it, and who cancelled or refunded it, by order code.", parameters: { type: "object", properties: { code: { type: "string" } }, required: ["code"] } }, run: getOrder },
   { roles: operations, status: "Checking the menu", spec: { name: "list_products", description: "Menu products with category, price, cost (owner/manager), status and stock left. Filter by search text or status (available, unavailable = sold out, hidden, low = 5 or fewer left, out = out of stock).", parameters: { type: "object", properties: { search: { type: "string" }, status: { type: "string", enum: ["available", "unavailable", "hidden", "low", "out"] } } } }, run: listProducts },
   { roles: management, status: "Checking shifts", spec: { name: "list_shifts", description: "Cashier shifts in a date range: who opened and closed, cash and digital sales, expected and counted cash, and the difference.", parameters: { type: "object", properties: { from: dateArg, to: dateArg } } }, run: listShifts },
   { roles: management, status: "Reading expenses", spec: { name: "list_expenses", description: "Expenses recorded in the dashboard and cash paid out at the tablet in a date range.", parameters: { type: "object", properties: { from: dateArg, to: dateArg } } }, run: listExpenses },

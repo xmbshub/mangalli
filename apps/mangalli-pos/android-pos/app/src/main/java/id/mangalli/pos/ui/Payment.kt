@@ -11,6 +11,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -18,12 +19,14 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Check
@@ -59,6 +62,23 @@ fun PaymentDialog(state: PosUiState, actions: PosActions) {
 
     PosDialog(onDismiss = { if (!state.isBusy) actions.openPayment(false) }, width = 980.dp, fixedHeight = 680.dp, dismissOnOutside = !state.isBusy) {
         DialogHeader("Charge ${formatPrice(total)}", context, onClose = { actions.openPayment(false) })
+        if (LocalCompact.current) {
+            // Ponsel: ringkasan satu baris (rincian di layar pesanan), lalu cara bayar.
+            Row(modifier = Modifier.fillMaxWidth().background(Pos.SurfaceMuted).padding(horizontal = Pos.Space5, vertical = Pos.Space3), verticalAlignment = Alignment.CenterVertically) {
+                Text(itemCount(state.cart.sumOf { it.quantity }) + if (pricing.discount > 0) " · ${pricing.discountLabel ?: "Discount"} −${formatPrice(pricing.discount)}" else "", style = PosType.BodySmall, color = Pos.Muted, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (state.outlet.taxRate > 0) Text("incl. ${OfflineOrders.taxLabel()} ${formatPrice(pricing.tax)}", style = PosType.Caption, color = Pos.Muted)
+            }
+            PaymentPanel(
+                total = total,
+                busy = state.isBusy,
+                confirmLabel = "Charge",
+                onConfirm = actions::charge,
+                modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = Pos.Space5, vertical = Pos.Space4).navigationBarsPadding(),
+                qris = state.outlet.qrisFor(total),
+                onPrintQris = if (state.outlet.qrisReady) ({ done -> actions.printQris(total, draft.customerName.ifBlank { "New order" }, context, done) }) else null,
+            )
+            return@PosDialog
+        }
         Row(modifier = Modifier.weight(1f)) {
             Column(
                 modifier = Modifier.width(340.dp).fillMaxHeight().background(Pos.SurfaceMuted).padding(Pos.Space5),
@@ -107,6 +127,11 @@ fun PaymentPanel(total: Double, busy: Boolean, confirmLabel: String, onConfirm: 
     // Hasil cetak QRIS di panel ini (toast tertutup dialog): null = belum, "" = berhasil.
     var qrisResult by remember { mutableStateOf<String?>(null) }
     var qrisLarge by remember { mutableStateOf(false) }
+    // Tombol bayar aktif 0,6 detik setelah panel muncul: ketukan ganda pada "Charge" di
+    // layar pesanan tidak langsung melunaskan (insiden uji 14 Okt 2026; di ponsel kedua
+    // tombol berada di posisi yang sama).
+    var armed by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { kotlinx.coroutines.delay(600); armed = true }
     val tendered = if (digits.isBlank()) total else parseAmount(digits)
     val change = tendered - total
     val valid = when (method) {
@@ -115,8 +140,12 @@ fun PaymentPanel(total: Double, busy: Boolean, confirmLabel: String, onConfirm: 
         else -> true
     }
 
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(Pos.Space4)) {
-        Segmented(
+    val compact = LocalCompact.current
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(if (compact) Pos.Space3 else Pos.Space4)) {
+        // Ponsel: lima cara bayar tidak muat dalam satu segmen, jadi chip yang bisa digeser.
+        if (compact) Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Pos.Space2)) {
+            paymentMethods.forEach { option -> ChoiceChip(paymentMethodLabel(option), selected = method == option, onClick = { method = option }) }
+        } else Segmented(
             options = paymentMethods.map { it to paymentMethodLabel(it) },
             selected = method,
             onSelect = { method = it },
@@ -124,11 +153,12 @@ fun PaymentPanel(total: Double, busy: Boolean, confirmLabel: String, onConfirm: 
             height = Pos.Control,
         )
         if (method == PAYMENT_CASH) {
+            val cashHeader: @Composable () -> Unit = {
             Row(verticalAlignment = Alignment.Bottom) {
                 Column(modifier = Modifier.weight(1f)) {
                     SectionLabel("Cash received")
                     AnimatedContent(targetState = tendered, transitionSpec = { EnterTransition.None togetherWith ExitTransition.None }, label = "tendered") { value ->
-                        Text(formatPrice(value), style = PosType.Amount, color = if (digits.isBlank()) Pos.Subtle else Pos.Ink)
+                        Text(formatPrice(value), style = if (compact) PosType.AmountSmall else PosType.Amount, color = if (digits.isBlank()) Pos.Subtle else Pos.Ink)
                     }
                 }
                 Column(horizontalAlignment = Alignment.End) {
@@ -149,7 +179,21 @@ fun PaymentPanel(total: Double, busy: Boolean, confirmLabel: String, onConfirm: 
                     )
                 }
             }
-            Numpad(onKey = { digits = appendDigits(digits, it) }, onBackspace = { digits = digits.dropLast(1) }, modifier = Modifier.weight(1f))
+            }
+            if (compact) {
+                // Ponsel: tombol angka minimal 54 dp. Layar pendek menggulir bagian tunai,
+                // layar tinggi membiarkan papan mengisi ruang.
+                BoxWithConstraints(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                    val pad = (maxHeight - 132.dp).coerceAtLeast(240.dp)
+                    Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(Pos.Space3)) {
+                        cashHeader()
+                        Numpad(onKey = { digits = appendDigits(digits, it) }, onBackspace = { digits = digits.dropLast(1) }, modifier = Modifier.fillMaxWidth().height(pad))
+                    }
+                }
+            } else {
+                cashHeader()
+                Numpad(onKey = { digits = appendDigits(digits, it) }, onBackspace = { digits = digits.dropLast(1) }, modifier = Modifier.weight(1f))
+            }
         } else {
             val hint = when (method) {
                 PAYMENT_QRIS -> "Show the store QRIS. Confirm after the customer's payment of ${formatPrice(total)} succeeds. Upload the QRIS in the dashboard to show it here with the amount."
@@ -157,6 +201,9 @@ fun PaymentPanel(total: Double, busy: Boolean, confirmLabel: String, onConfirm: 
                 PAYMENT_TRANSFER -> "Check that ${formatPrice(total)} has arrived, then confirm."
                 else -> "Describe how the customer paid."
             }
+            // Bagian tengah bisa digulir: dengan keyboard terbuka (ponsel) kolom referensi
+            // tetap terlihat dan tombol bayar tetap di atas keyboard.
+            Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(if (compact) Pos.Space3 else Pos.Space4)) {
             if (method == PAYMENT_QRIS && qris != null) {
                 QrisCard(qris, total, onEnlarge = { qrisLarge = true }, onPrint = onPrintQris?.let { print -> { qrisResult = null; print { qrisResult = it ?: "" } } }, busy = busy)
                 qrisResult?.let { result ->
@@ -177,11 +224,11 @@ fun PaymentPanel(total: Double, busy: Boolean, confirmLabel: String, onConfirm: 
                 placeholder = if (method == PAYMENT_OTHER) "e.g. voucher, e-wallet" else "Approval code or last 4 digits",
                 capitalization = KeyboardCapitalization.Sentences,
             )
-            Spacer(Modifier.weight(1f))
+            }
         }
         PosButton(
             "$confirmLabel ${formatPrice(total)}",
-            onClick = { onConfirm(PaymentInput(method, tendered, reference)) },
+            onClick = { if (armed) onConfirm(PaymentInput(method, tendered, reference)) },
             size = ButtonSize.Large,
             enabled = valid,
             loading = busy,
@@ -194,10 +241,15 @@ fun PaymentPanel(total: Double, busy: Boolean, confirmLabel: String, onConfirm: 
 @Composable
 fun PaymentSuccessDialog(result: SaleResult, actions: PosActions) {
     val scale = remember { Animatable(0.4f) }
-    LaunchedEffect(result.code) { scale.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow)) }
+    val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
+    LaunchedEffect(result.code) {
+        // Getaran singkat saat lunas: kasir tahu tanpa melihat layar.
+        haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+        scale.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow))
+    }
     PosDialog(onDismiss = actions::closeSaleResult, width = 460.dp) {
         Column(
-            modifier = Modifier.fillMaxWidth().padding(Pos.Space6),
+            modifier = Modifier.fillMaxWidth().padding(dialogInset()),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(Pos.Space2),
         ) {
@@ -216,7 +268,7 @@ fun PaymentSuccessDialog(result: SaleResult, actions: PosActions) {
                 }
             }
         }
-        Row(modifier = Modifier.fillMaxWidth().padding(start = Pos.Space6, end = Pos.Space6, bottom = Pos.Space6), horizontalArrangement = Arrangement.spacedBy(Pos.Space3)) {
+        Row(modifier = Modifier.fillMaxWidth().padding(start = dialogInset(), end = dialogInset(), bottom = Pos.Space6).then(if (LocalCompact.current) Modifier.navigationBarsPadding() else Modifier), horizontalArrangement = Arrangement.spacedBy(Pos.Space3)) {
             PosButton("Print receipt", onClick = actions::printLastReceipt, variant = ButtonVariant.Secondary, icon = Icons.Outlined.Print, size = ButtonSize.Large, modifier = Modifier.weight(1f))
             PosButton("New order", onClick = actions::closeSaleResult, size = ButtonSize.Large, modifier = Modifier.weight(1f))
         }

@@ -16,11 +16,11 @@ import androidx.compose.ui.unit.dp
 
 // Banner di atas layar kerja saat versi baru tersedia (bukan wajib).
 @Composable
-fun UpdateBanner(update: AppUpdateState, actions: PosActions) {
+fun UpdateBanner(update: AppUpdateState, actions: PosActions, modifier: Modifier = Modifier.padding(start = Pos.Space4, end = Pos.Space4, top = Pos.Space4)) {
     InfoBanner(
         "Mangalli ${update.versionName} is ready.",
         tone = Tone.Primary,
-        modifier = Modifier.padding(start = Pos.Space4, end = Pos.Space4, top = Pos.Space4),
+        modifier = modifier,
     ) {
         PosButton("What's new", onClick = actions::openUpdate, size = ButtonSize.Small)
     }
@@ -35,7 +35,7 @@ fun UpdateDialog(update: AppUpdateState, actions: PosActions) {
     PosDialog(onDismiss = close, width = 520.dp, dismissOnOutside = !update.required && !downloading) {
         DialogHeader(
             title = "Update to Mangalli ${update.versionName}",
-            subtitle = if (update.required) "Required to keep using the tablet." else "What's new in this version",
+            subtitle = if (update.required) "Required to keep using the ${deviceNoun()}." else "What's new in this version",
             onClose = if (update.required || downloading) null else close,
         )
         DialogBody(spacing = Pos.Space2) {

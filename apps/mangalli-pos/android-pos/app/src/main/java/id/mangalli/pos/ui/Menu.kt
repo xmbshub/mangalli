@@ -34,6 +34,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -96,24 +98,35 @@ private const val FAVOURITES = "label:favourite"
 val BestSellerIcon = Icons.Rounded.Star
 val FavouriteIcon = Icons.Rounded.ThumbUp
 
+// customAmount/onOpenOrder hanya untuk ponsel: di sana "Custom amount" dibuka dari
+// TopAppBar dan pesanan berjalan tampil sebagai layar sendiri (MobileOrderScreen).
 @Composable
-fun MenuScreen(state: PosUiState, actions: PosActions) {
+fun MenuScreen(state: PosUiState, actions: PosActions, customAmount: Boolean = false, onCustomAmount: (Boolean) -> Unit = {}, onOpenOrder: () -> Unit = {}, billsOpen: Boolean = false, onBills: (Boolean) -> Unit = {}) {
     var sheet by remember { mutableStateOf<Pair<CatalogProductEntity, CartItemEntity?>?>(null) }
     val haptics = LocalHapticFeedback.current
-    Row(modifier = Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(Pos.Space4)) {
-        CatalogPane(
-            state = state,
-            actions = actions,
-            onProduct = { product ->
-                if (modifierGroups(product).isEmpty()) {
-                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    actions.addProduct(product, emptyList(), 1, "", null)
-                } else {
-                    sheet = product to null
-                }
-            },
-            modifier = Modifier.weight(1f).fillMaxHeight(),
-        )
+    val onProduct = { product: CatalogProductEntity ->
+        if (modifierGroups(product).isEmpty()) {
+            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            actions.addProduct(product, emptyList(), 1, "", null)
+        } else {
+            sheet = product to null
+        }
+    }
+    if (LocalCompact.current) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            CatalogPane(state, actions, onProduct, Modifier.weight(1f).fillMaxWidth())
+            OrderBar(state, onOpenOrder)
+        }
+        // Ponsel: daftar bill terbuka dari TopAppBar Menu; membuka bill langsung ke layar pesanan.
+        if (billsOpen) OpenBillsDialog(state.openBills, state.draft.activeBillId, onOpen = { actions.openBill(it); onBills(false); onOpenOrder() }, onDismiss = { onBills(false) })
+        if (customAmount) {
+            PosDialog(onDismiss = { onCustomAmount(false) }) {
+                DialogHeader("Custom amount", "Charge an item that isn't on the menu.", onClose = { onCustomAmount(false) })
+                CustomAmountPanel(maximum = state.outlet.customAmountMax, onAdd = { name, amount -> actions.addCustomAmount(name, amount); onCustomAmount(false) }, modifier = Modifier.fillMaxWidth().height(520.dp))
+            }
+        }
+    } else Row(modifier = Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(Pos.Space4)) {
+        CatalogPane(state, actions, onProduct, Modifier.weight(1f).fillMaxHeight())
         OrderPane(
             state = state,
             actions = actions,
@@ -121,19 +134,61 @@ fun MenuScreen(state: PosUiState, actions: PosActions) {
             modifier = Modifier.width(408.dp).fillMaxHeight(),
         )
     }
+    ProductSheetHost(state, actions, sheet) { sheet = it }
+}
+
+// Ponsel: pesanan berjalan sebagai layar penuh dengan TopAppBar dan tombol kembali.
+@Composable
+fun MobileOrderScreen(state: PosUiState, actions: PosActions, onBack: () -> Unit) {
+    var sheet by remember { mutableStateOf<Pair<CatalogProductEntity, CartItemEntity?>?>(null) }
+    androidx.activity.compose.BackHandler(onBack = onBack)
+    OrderPane(
+        state = state,
+        actions = actions,
+        onEditItem = { item -> state.products.firstOrNull { it.id == item.productId }?.let { sheet = it to item } },
+        modifier = Modifier.fillMaxSize(),
+        onBack = onBack,
+    )
+    ProductSheetHost(state, actions, sheet) { sheet = it }
+}
+
+// Bilah ringkas di bawah katalog ponsel: jumlah item dan total, ketuk untuk membuka pesanan.
+@Composable
+private fun OrderBar(state: PosUiState, onOpen: () -> Unit) {
+    val count = state.cart.sumOf { it.quantity }
+    AnimatedVisibility(visible = count > 0 || state.draft.activeBillId != null, enter = slideInVertically { it } + fadeIn(), exit = slideOutVertically { it } + fadeOut()) {
+        androidx.compose.material3.Button(
+            onClick = onOpen,
+            modifier = Modifier.fillMaxWidth().padding(top = Pos.Space3).height(Pos.ControlLarge + 4.dp),
+            shape = RoundedCornerShape(Pos.RadiusCard),
+            colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Pos.Primary, contentColor = Color.White),
+            contentPadding = PaddingValues(horizontal = Pos.Space4),
+        ) {
+            Box(modifier = Modifier.size(28.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.22f)), contentAlignment = Alignment.Center) {
+                Text(count.toString(), style = PosType.Label, color = Color.White)
+            }
+            Spacer(Modifier.width(Pos.Space3))
+            Text(state.draft.activeBillLabel ?: "View order", style = PosType.Label, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(formatPrice(state.pricing.total), style = PosType.Label)
+        }
+    }
+}
+
+@Composable
+private fun ProductSheetHost(state: PosUiState, actions: PosActions, sheet: Pair<CatalogProductEntity, CartItemEntity?>?, setSheet: (Pair<CatalogProductEntity, CartItemEntity?>?) -> Unit) {
     sheet?.let { (product, editing) ->
         ProductSheet(
             product = product,
             editing = editing,
             // Batas dari stok: sisa + jumlah baris yang sedang diedit (null = tidak dilacak).
             maxQuantity = state.stockLeft[product.id]?.let { left -> (left + (editing?.quantity ?: 0)).coerceAtLeast(0) },
-            onDismiss = { sheet = null },
+            onDismiss = { setSheet(null) },
             onSubmit = { options, quantity, notes ->
                 actions.addProduct(product, options, quantity, notes, editing?.cartLineId)
-                sheet = null
+                setSheet(null)
             },
             // Baris yang sudah tersimpan di bill dikurangi lewat Void di panel pesanan.
-            onRemove = editing?.takeIf { (state.billQuantities[it.cartLineId] ?: 0) == 0 }?.let { item -> { actions.removeItem(item); sheet = null } },
+            onRemove = editing?.takeIf { (state.billQuantities[it.cartLineId] ?: 0) == 0 }?.let { item -> { actions.removeItem(item); setSheet(null) } },
         )
     }
 }
@@ -162,8 +217,11 @@ private fun CatalogPane(state: PosUiState, actions: PosActions, onProduct: (Cata
     }
     val inCart = state.cart.groupBy { it.productId }.mapValues { (_, lines) -> lines.sumOf { it.quantity } }
 
+    val compact = LocalCompact.current
+    if (compact) mode = "menu"
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(Pos.Space3)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(Pos.Space3), verticalAlignment = Alignment.CenterVertically) {
+        if (compact) SearchField(query, { query = it }, "Search ${state.products.size} products", modifier = Modifier.fillMaxWidth())
+        else Row(horizontalArrangement = Arrangement.spacedBy(Pos.Space3), verticalAlignment = Alignment.CenterVertically) {
             if (mode == "menu") {
                 SearchField(query, { query = it }, "Search ${state.products.size} products", modifier = Modifier.weight(1f))
             } else {
@@ -181,7 +239,8 @@ private fun CatalogPane(state: PosUiState, actions: PosActions, onProduct: (Cata
             )
         }
         if (state.operations.shift == null) {
-            InfoBanner("The shift is closed. Open a shift to take payments.", tone = Tone.Warning) {
+            val waiting = state.menuOrdersWithoutShift
+            InfoBanner(if (waiting > 0) "The shift is closed and $waiting digital menu order${if (waiting > 1) "s are" else " is"} waiting. Open a shift to take payment." else "The shift is closed. Open a shift to take payments.", tone = Tone.Warning) {
                 PosButton("Open shift", onClick = { actions.navigate(Screen.Shift) }, size = ButtonSize.Small)
             }
         }
@@ -197,12 +256,18 @@ private fun CatalogPane(state: PosUiState, actions: PosActions, onProduct: (Cata
                         categories.drop(1).forEach { name -> ChoiceChip(name, selected = name == category, onClick = { category = name }) }
                     }
                     when {
-                        state.products.isEmpty() -> EmptyState("No menu on this tablet yet", modifier = Modifier.fillMaxSize()) {
+                        state.products.isEmpty() -> EmptyState("No menu on this ${deviceNoun()} yet", modifier = Modifier.fillMaxSize()) {
                             PosButton("Sync now", onClick = actions::syncNow, variant = ButtonVariant.Secondary)
                         }
                         visible.isEmpty() -> EmptyState("No products match", modifier = Modifier.fillMaxSize())
-                        else -> LazyVerticalGrid(
-                            columns = GridCells.Adaptive(minSize = 168.dp),
+                        else -> {
+                            // Ponsel: menggulir katalog menutup keyboard pencarian.
+                            val grid = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
+                            val focus = androidx.compose.ui.platform.LocalFocusManager.current
+                            androidx.compose.runtime.LaunchedEffect(grid.isScrollInProgress) { if (grid.isScrollInProgress && compact) focus.clearFocus() }
+                            LazyVerticalGrid(
+                            columns = GridCells.Adaptive(minSize = if (compact) 148.dp else 168.dp),
+                            state = grid,
                             modifier = Modifier.fillMaxSize(),
                             contentPadding = PaddingValues(bottom = Pos.Space4),
                             horizontalArrangement = Arrangement.spacedBy(Pos.Space3),
@@ -211,6 +276,7 @@ private fun CatalogPane(state: PosUiState, actions: PosActions, onProduct: (Cata
                             items(visible, key = { it.id }) { product ->
                                 ProductCard(product, inCart[product.id] ?: 0, state.stockLeft[product.id], onClick = { onProduct(product) })
                             }
+                        }
                         }
                     }
                 }
@@ -300,6 +366,17 @@ private fun CustomAmountPanel(maximum: Double, onAdd: (String, Double) -> Unit, 
     var label by rememberSaveable { mutableStateOf("") }
     val amount = parseAmount(digits)
     val tooHigh = amount > maximum
+    if (LocalCompact.current) {
+        Column(modifier = modifier.padding(horizontal = Pos.Space5).padding(top = Pos.Space4, bottom = Pos.Space5).navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(Pos.Space3)) {
+            PosTextField(value = label, onValueChange = { label = it.take(80) }, label = "Description", placeholder = "Custom amount", capitalization = KeyboardCapitalization.Sentences)
+            Text(formatPrice(amount), style = PosType.Amount, color = if (amount > 0) Pos.Ink else Pos.Subtle)
+            if (tooHigh) Text("Maximum ${formatPrice(maximum)}.", style = PosType.Caption, color = Pos.Danger)
+            Numpad(onKey = { digits = appendDigits(digits, it) }, onBackspace = { digits = digits.dropLast(1) }, modifier = Modifier.weight(1f))
+            PosButton("Add to order", onClick = { onAdd(label.trim().ifBlank { "Custom amount" }, amount); digits = ""; label = "" },
+                size = ButtonSize.Large, enabled = amount > 0 && !tooHigh, haptic = true, modifier = Modifier.fillMaxWidth())
+        }
+        return
+    }
     PosCard(modifier = modifier, padding = PaddingValues(Pos.Space5)) {
         Row(modifier = Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(Pos.Space6)) {
             Column(modifier = Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(Pos.Space4)) {
@@ -341,7 +418,7 @@ private fun CustomAmountPanel(maximum: Double, onAdd: (String, Double) -> Unit, 
 // ---------- Pesanan ----------
 
 @Composable
-private fun OrderPane(state: PosUiState, actions: PosActions, onEditItem: (CartItemEntity) -> Unit, modifier: Modifier) {
+private fun OrderPane(state: PosUiState, actions: PosActions, onEditItem: (CartItemEntity) -> Unit, modifier: Modifier, onBack: (() -> Unit)? = null) {
     var confirmClear by remember { mutableStateOf(false) }
     var showBills by remember { mutableStateOf(false) }
     var showTables by remember { mutableStateOf(false) }
@@ -356,13 +433,24 @@ private fun OrderPane(state: PosUiState, actions: PosActions, onEditItem: (CartI
     val count = state.cart.sumOf { it.quantity }
     val editingBill = draft.activeBillId != null
 
-    PosCard(modifier = modifier, padding = PaddingValues(0.dp)) {
+    val subtitle = if (editingBill) "Saved bill · ${itemCount(count)}" else if (count == 0) "No items" else itemCount(count)
+    OrderPaneFrame(modifier, mobile = onBack != null) {
+        if (onBack != null) {
+            MobileTopBar(
+                title = draft.activeBillLabel ?: "Current order",
+                subtitle = subtitle,
+                onBack = onBack,
+            ) {
+                PosIconButton(Icons.Outlined.ReceiptLong, "Open bills", { showBills = true }, outlined = false, badge = state.openBills.size)
+                PosIconButton(Icons.Outlined.DeleteOutline, if (editingBill) "Close bill" else "Clear order", { confirmClear = true }, outlined = false, enabled = state.cart.isNotEmpty() || editingBill, tint = Pos.Danger)
+            }
+        }
         Column(modifier = Modifier.padding(Pos.Space4), verticalArrangement = Arrangement.spacedBy(Pos.Space3)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Pos.Space2)) {
+            if (onBack == null) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Pos.Space2)) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(draft.activeBillLabel ?: "Current order", style = PosType.Heading, color = Pos.Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(
-                        if (editingBill) "Saved bill · ${itemCount(count)}" else if (count == 0) "No items" else itemCount(count),
+                        subtitle,
                         style = PosType.Caption,
                         color = if (editingBill) Pos.PrimaryPressed else Pos.Muted,
                     )
@@ -384,7 +472,7 @@ private fun OrderPane(state: PosUiState, actions: PosActions, onEditItem: (CartI
                         onClick = { showTables = true },
                         variant = if (hasTable) ButtonVariant.Secondary else ButtonVariant.Secondary,
                         icon = Icons.Outlined.TableRestaurant,
-                        modifier = Modifier.width(150.dp).height(Pos.Field),
+                        modifier = Modifier.width(152.dp).height(Pos.Field),
                     )
                 }
                 CompactField(
@@ -417,7 +505,7 @@ private fun OrderPane(state: PosUiState, actions: PosActions, onEditItem: (CartI
             }
         }
         HorizontalLine()
-        Column(modifier = Modifier.background(Pos.SurfaceMuted).padding(Pos.Space4), verticalArrangement = Arrangement.spacedBy(Pos.Space2)) {
+        Column(modifier = Modifier.background(Pos.SurfaceMuted).padding(Pos.Space4).then(if (onBack != null) Modifier.navigationBarsPadding() else Modifier), verticalArrangement = Arrangement.spacedBy(Pos.Space2)) {
             KeyValue("Subtotal", formatPrice(pricing.subtotal))
             DiscountRow(state, onOpen = { discountOpen = true }, onRemove = { actions.applyPromo(null) })
             if (state.outlet.taxRate > 0) KeyValue(OfflineOrders.taxLabel(), formatPrice(pricing.tax))
@@ -483,6 +571,13 @@ private fun OrderPane(state: PosUiState, actions: PosActions, onEditItem: (CartI
     }
 }
 
+// Tablet: kartu di kanan Menu. Ponsel: layar penuh tanpa bingkai kartu.
+@Composable
+private fun OrderPaneFrame(modifier: Modifier, mobile: Boolean, content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {
+    if (mobile) Column(modifier = modifier.background(Pos.Surface).imePadding(), content = content)
+    else PosCard(modifier = modifier, padding = PaddingValues(0.dp), content = content)
+}
+
 // Void item yang sudah tersimpan di bill: pilih jumlahnya sekali, satu alasan
 // dan satu PIN (bukan per cup).
 @Composable
@@ -503,7 +598,7 @@ private fun VoidDialog(item: CartItemEntity, saved: Int, maximum: Int, initial: 
                         Text("${formatPrice(item.price * count)} off the bill", style = PosType.Caption, color = Pos.Muted)
                     }
                     if (maximum > 1) ChoiceChip("All $maximum", selected = count == maximum, onClick = { count = maximum })
-                    QuantityStepper(count, onMinus = { count = (count - 1).coerceAtLeast(1) }, onPlus = { count = (count + 1).coerceAtMost(maximum) })
+                    QuantityStepper(count, onMinus = { count = (count - 1).coerceAtLeast(1) }, onPlus = { count = (count + 1).coerceAtMost(maximum) }, minusEnabled = count > 1, plusEnabled = count < maximum)
                 }
                 ApprovalFields(
                     reason = reason, onReason = { reason = it; error = null }, password = pin, onPassword = { pin = it; error = null },
@@ -585,7 +680,7 @@ private fun OpenBillsDialog(bills: List<LocalOrderEntity>, activeBillId: String?
     val filtered = bills.filter { query.isBlank() || it.contextLabel().contains(query.trim(), ignoreCase = true) || it.code().contains(query.trim(), ignoreCase = true) }
     PosDialog(onDismiss = onDismiss, width = 600.dp, fixedHeight = 640.dp) {
         DialogHeader("Open bills", if (bills.isEmpty()) "No unpaid bills" else "${bills.size} unpaid · ${formatPrice(bills.sumOf { it.total })}", onClose = onDismiss)
-        Column(modifier = Modifier.weight(1f).padding(horizontal = Pos.Space6, vertical = Pos.Space4), verticalArrangement = Arrangement.spacedBy(Pos.Space3)) {
+        Column(modifier = Modifier.weight(1f).padding(horizontal = dialogInset(), vertical = Pos.Space4), verticalArrangement = Arrangement.spacedBy(Pos.Space3)) {
             if (bills.isNotEmpty()) SearchField(query, { query = it }, "Search table, name, or code", modifier = Modifier.fillMaxWidth())
             if (filtered.isEmpty()) {
                 EmptyState(if (bills.isEmpty()) "No open bills" else "No bills match", modifier = Modifier.fillMaxSize())
@@ -623,6 +718,25 @@ private fun TablePicker(state: PosUiState, onPick: (String) -> Unit, onDismiss: 
     val busyTables = state.openBills.filter { it.orderMode == ORDER_MODE_DINEIN }.mapNotNull { it.tableNumber }.toSet()
     PosDialog(onDismiss = onDismiss, width = if (tables.isEmpty()) 420.dp else 760.dp, fixedHeight = 560.dp) {
         DialogHeader("Choose table", if (tables.isEmpty()) "No tables synced from the dashboard yet." else "Open bills are marked.", onClose = onDismiss)
+        if (LocalCompact.current) {
+            // Ponsel: meja per area dalam grid; ketuk meja langsung memilihnya.
+            if (tables.isEmpty()) EmptyState("Add tables under Tables & QR in the dashboard, then sync.", modifier = Modifier.fillMaxWidth().weight(1f))
+            else LazyVerticalGrid(columns = GridCells.Adaptive(76.dp), modifier = Modifier.weight(1f).padding(horizontal = Pos.Space5), contentPadding = PaddingValues(top = Pos.Space2, bottom = Pos.Space6), horizontalArrangement = Arrangement.spacedBy(Pos.Space2), verticalArrangement = Arrangement.spacedBy(Pos.Space2)) {
+                tables.groupBy { it.area.ifBlank { "Tables" } }.forEach { (area, areaTables) ->
+                    item(key = "area:$area", span = { GridItemSpan(maxLineSpan) }) { SectionLabel(area, modifier = Modifier.padding(top = Pos.Space2)) }
+                    items(areaTables, key = { it.code }) { table ->
+                        val number = table.number!!
+                        PosCard(onClick = { onPick(number.toString()) }, selected = digits == number.toString(), padding = PaddingValues(Pos.Space2), modifier = Modifier.height(68.dp)) {
+                            Column(modifier = Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                                Text(number.toString(), style = PosType.Heading, color = Pos.Ink)
+                                Text(if (number in busyTables) "Open bill" else table.label, style = PosType.Micro.copy(fontWeight = PosType.Body.fontWeight), color = if (number in busyTables) Pos.Warning else Pos.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                        }
+                    }
+                }
+            }
+            return@PosDialog
+        }
         Row(modifier = Modifier.weight(1f).padding(Pos.Space6), horizontalArrangement = Arrangement.spacedBy(Pos.Space6)) {
             if (tables.isNotEmpty()) {
                 LazyVerticalGrid(columns = GridCells.Adaptive(96.dp), modifier = Modifier.weight(1.4f), horizontalArrangement = Arrangement.spacedBy(Pos.Space2), verticalArrangement = Arrangement.spacedBy(Pos.Space2)) {
@@ -685,7 +799,7 @@ private fun ProductSheet(
             },
         )
         Column(
-            modifier = Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(horizontal = Pos.Space6, vertical = Pos.Space5),
+            modifier = Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(horizontal = dialogInset(), vertical = Pos.Space5),
             verticalArrangement = Arrangement.spacedBy(Pos.Space5),
         ) {
             groups.forEach { group ->
@@ -695,10 +809,13 @@ private fun ProductSheet(
                         Text(group.name, style = PosType.Heading, color = Pos.Ink)
                         Pill(group.selectionHint(), if (count < group.minSelect) Tone.Warning else Tone.Neutral)
                     }
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(Pos.Space2), verticalArrangement = Arrangement.spacedBy(Pos.Space2)) {
+                    val compact = LocalCompact.current
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(Pos.Space2), verticalArrangement = Arrangement.spacedBy(Pos.Space2), maxItemsInEachRow = if (compact) 2 else Int.MAX_VALUE) {
                         group.options.forEach { option ->
-                            OptionTile(option, selected = option.id in selected) { selected = toggleModifierOption(selected, group, option) }
+                            OptionTile(option, selected = option.id in selected, modifier = if (compact) Modifier.weight(1f) else Modifier.width(212.dp)) { selected = toggleModifierOption(selected, group, option) }
                         }
+                        // Baris terakhir yang ganjil tetap selebar setengah.
+                        if (compact && group.options.size % 2 == 1) Spacer(Modifier.weight(1f))
                     }
                 }
             }
@@ -707,7 +824,7 @@ private fun ProductSheet(
                     Text("Quantity", style = PosType.Heading, color = Pos.Ink)
                     if (maxQuantity != null) Text(if (cap > 0) "$cap left in stock" else "Out of stock", style = PosType.Caption, color = if (cap <= 5) Pos.Warning else Pos.Muted)
                 }
-                QuantityStepper(quantity, onMinus = { quantity = (quantity - 1).coerceAtLeast(1) }, onPlus = { quantity = (quantity + 1).coerceAtMost(cap) })
+                QuantityStepper(quantity, onMinus = { quantity = (quantity - 1).coerceAtLeast(1) }, onPlus = { quantity = (quantity + 1).coerceAtMost(cap) }, minusEnabled = quantity > 1, plusEnabled = quantity < cap)
             }
             PosTextField(
                 value = notes,
@@ -728,18 +845,17 @@ private fun ProductSheet(
                 onClick = { onSubmit(options, quantity, notes) },
                 enabled = missing == null && cap >= 1,
                 haptic = true,
-                modifier = Modifier.widthIn(min = 200.dp),
+                modifier = if (LocalCompact.current) Modifier.weight(1f) else Modifier.widthIn(min = 200.dp),
             )
         }
     }
 }
 
 @Composable
-private fun OptionTile(option: ModifierOption, selected: Boolean, onClick: () -> Unit) {
+private fun OptionTile(option: ModifierOption, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
     val interaction = remember { MutableInteractionSource() }
     Row(
-        modifier = Modifier
-            .width(212.dp)
+        modifier = modifier
             .height(56.dp)
             .pressable(interaction)
             .clip(RoundedCornerShape(Pos.Radius))
@@ -821,7 +937,7 @@ private fun DiscountDialog(state: PosUiState, actions: PosActions, onDismiss: ()
             options = listOf("promo" to "Promotions", "manual" to "Manual discount"),
             selected = if (manual) "manual" else "promo",
             onSelect = { manual = it == "manual" },
-            modifier = Modifier.fillMaxWidth().padding(start = Pos.Space6, end = Pos.Space6, top = Pos.Space5),
+            modifier = Modifier.fillMaxWidth().padding(start = dialogInset(), end = dialogInset(), top = Pos.Space5),
         )
         DialogBody(Pos.Space3) {
             if (!manual) {
@@ -834,7 +950,7 @@ private fun DiscountDialog(state: PosUiState, actions: PosActions, onDismiss: ()
                     PosTextField(coupon, { coupon = it.take(32) }, "Coupon code", placeholder = "e.g. HEMAT20",
                         keyboardType = androidx.compose.ui.text.input.KeyboardType.Ascii, capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Characters,
                         onImeAction = { if (ready) { actions.applyCoupon(coupon); onDismiss() } }, modifier = Modifier.weight(1f))
-                    PosButton("Apply", onClick = { actions.applyCoupon(coupon); onDismiss() }, variant = ButtonVariant.Secondary, enabled = ready)
+                    PosButton("Apply", onClick = { actions.applyCoupon(coupon); onDismiss() }, variant = ButtonVariant.Secondary, enabled = ready, modifier = Modifier.height(Pos.Field))
                 }
                 if (state.promoOptions.isEmpty()) {
                     EmptyState("No automatic promos right now")

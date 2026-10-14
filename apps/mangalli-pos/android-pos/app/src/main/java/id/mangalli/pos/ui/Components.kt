@@ -26,12 +26,13 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -53,8 +54,29 @@ import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.VisibilityOff
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.ModalBottomSheetProperties
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedIconButton
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SheetValue
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
@@ -69,6 +91,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
@@ -123,8 +146,12 @@ fun PosButton(
     loading: Boolean = false,
     haptic: Boolean = false,
 ) {
-    val interaction = remember { MutableInteractionSource() }
     val haptics = LocalHapticFeedback.current
+    if (LocalCompact.current) {
+        MaterialPosButton(text, { if (haptic) haptics.performHapticFeedback(HapticFeedbackType.LongPress); onClick() }, modifier, variant, size, icon, enabled, loading)
+        return
+    }
+    val interaction = remember { MutableInteractionSource() }
     val active = enabled && !loading
     val (container, content, border) = when (variant) {
         ButtonVariant.Primary -> Triple(Pos.Primary, Color.White, null)
@@ -175,6 +202,50 @@ fun PosButton(
     }
 }
 
+// Kaki sheet ponsel: tombol di dalamnya membagi lebar sama rata (seperti tombol aksi
+// bawah aplikasi Android) lewat weight dari FlowRow footer.
+private val LocalFooterScope = androidx.compose.runtime.staticCompositionLocalOf<RowScope?> { null }
+
+// Tombol Material bawaan untuk ponsel, dengan warna dan sudut design system.
+@Composable
+private fun MaterialPosButton(text: String, onClick: () -> Unit, modifier: Modifier, variant: ButtonVariant, size: ButtonSize, icon: ImageVector?, enabled: Boolean, loading: Boolean) {
+    val shape = RoundedCornerShape(Pos.Radius)
+    val footer = LocalFooterScope.current
+    val height = when {
+        footer != null || size == ButtonSize.Large -> Pos.ControlLarge
+        size == ButtonSize.Medium -> Pos.Control
+        else -> Pos.ControlSmall
+    }
+    val sized = (if (footer != null) with(footer) { modifier.weight(1f) } else modifier).heightIn(min = height)
+    val padding = PaddingValues(horizontal = if (size == ButtonSize.Small) Pos.Space3 else Pos.Space4)
+    val active = enabled && !loading
+    val label: @Composable () -> Unit = {
+        val tint = androidx.compose.material3.LocalContentColor.current
+        if (loading) CircularProgressIndicator(modifier = Modifier.size(16.dp), color = tint, strokeWidth = 2.dp)
+        else if (icon != null) Icon(icon, contentDescription = null, modifier = Modifier.size(if (size == ButtonSize.Small) 16.dp else 18.dp))
+        if (loading || icon != null) Spacer(Modifier.width(Pos.Space2))
+        Text(text, style = if (size == ButtonSize.Small) PosType.Caption.copy(fontWeight = PosType.Label.fontWeight) else PosType.Label, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+    when (variant) {
+        ButtonVariant.Primary, ButtonVariant.Danger -> Button(
+            onClick, sized, enabled = active, shape = shape, contentPadding = padding,
+            colors = ButtonDefaults.buttonColors(containerColor = if (variant == ButtonVariant.Danger) Pos.Danger else Pos.Primary, contentColor = Color.White, disabledContainerColor = Pos.Line, disabledContentColor = Pos.Subtle),
+        ) { label() }
+        ButtonVariant.Secondary -> OutlinedButton(
+            onClick, sized, enabled = active, shape = shape, contentPadding = padding, border = BorderStroke(1.dp, Pos.Line),
+            colors = ButtonDefaults.outlinedButtonColors(containerColor = Pos.Surface, contentColor = Pos.Ink, disabledContentColor = Pos.Subtle),
+        ) { label() }
+        ButtonVariant.Ghost -> TextButton(
+            onClick, sized, enabled = active, shape = shape, contentPadding = padding,
+            colors = ButtonDefaults.textButtonColors(contentColor = Pos.Text, disabledContentColor = Pos.Subtle),
+        ) { label() }
+        ButtonVariant.DangerSoft -> FilledTonalButton(
+            onClick, sized, enabled = active, shape = shape, contentPadding = padding,
+            colors = ButtonDefaults.filledTonalButtonColors(containerColor = Pos.DangerSoft, contentColor = Pos.Danger, disabledContainerColor = Pos.LineSoft, disabledContentColor = Pos.Subtle),
+        ) { label() }
+    }
+}
+
 @Composable
 fun PosIconButton(
     icon: ImageVector,
@@ -189,6 +260,17 @@ fun PosIconButton(
     // ukuran penuh untuk header dan toolbar.
     compact: Boolean = false,
 ) {
+    if (LocalCompact.current) {
+        val icon: @Composable () -> Unit = {
+            if (badge > 0) BadgedBox(badge = { Badge(containerColor = Pos.Primary, contentColor = Color.White) { Text(if (badge > 99) "99+" else badge.toString()) } }) {
+                Icon(icon, contentDescription = contentDescription, modifier = Modifier.size(20.dp))
+            } else Icon(icon, contentDescription = contentDescription, modifier = Modifier.size(if (compact) 18.dp else 20.dp))
+        }
+        val colors = IconButtonDefaults.iconButtonColors(contentColor = tint, disabledContentColor = Pos.Subtle)
+        if (outlined) OutlinedIconButton(onClick, modifier, enabled = enabled, border = BorderStroke(1.dp, Pos.Line), colors = IconButtonDefaults.outlinedIconButtonColors(contentColor = tint, disabledContentColor = Pos.Subtle)) { icon() }
+        else IconButton(onClick, modifier, enabled = enabled, colors = colors) { icon() }
+        return
+    }
     val interaction = remember { MutableInteractionSource() }
     Box(modifier = modifier.pressable(interaction, enabled)) {
         Box(
@@ -226,7 +308,7 @@ fun CountBadge(count: Int, modifier: Modifier = Modifier, color: Color = Pos.Pri
 @Composable
 fun PosCard(
     modifier: Modifier = Modifier,
-    padding: PaddingValues = PaddingValues(Pos.Space5),
+    padding: PaddingValues = PaddingValues(if (LocalCompact.current) Pos.Space4 else Pos.Space5),
     onClick: (() -> Unit)? = null,
     selected: Boolean = false,
     content: @Composable ColumnScope.() -> Unit,
@@ -258,6 +340,8 @@ fun CardHeader(title: String, subtitle: String? = null, action: (@Composable () 
 
 @Composable
 fun ScreenHeader(title: String, subtitle: String? = null, actions: @Composable RowScope.() -> Unit = {}) {
+    // Ponsel: judul dan keterangan ada di TopAppBar (MobileShell).
+    if (LocalCompact.current) return
     Row(modifier = Modifier.fillMaxWidth().height(56.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(modifier = Modifier.weight(1f)) {
             Text(title, style = PosType.Title, color = Pos.Ink)
@@ -410,6 +494,24 @@ fun Segmented(
     modifier: Modifier = Modifier,
     height: Dp = 40.dp,
 ) {
+    if (LocalCompact.current) {
+        SingleChoiceSegmentedButtonRow(modifier = modifier) {
+            options.forEachIndexed { index, (value, label) ->
+                SegmentedButton(
+                    selected = value == selected,
+                    onClick = { onSelect(value) },
+                    shape = SegmentedButtonDefaults.itemShape(index, options.size),
+                    colors = SegmentedButtonDefaults.colors(
+                        activeContainerColor = Pos.PrimarySoftStrong, activeContentColor = Pos.PrimaryPressed, activeBorderColor = Pos.Line,
+                        inactiveContainerColor = Pos.Surface, inactiveContentColor = Pos.Text, inactiveBorderColor = Pos.Line,
+                    ),
+                    icon = {},
+                    label = { Text(label, style = PosType.Label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                )
+            }
+        }
+        return
+    }
     Row(
         modifier = modifier
             .height(height)
@@ -441,6 +543,21 @@ fun Segmented(
 // Chip pilihan (kategori, jumlah uang cepat, meja).
 @Composable
 fun ChoiceChip(text: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true, icon: ImageVector? = null, iconTint: Color? = null) {
+    if (LocalCompact.current) {
+        FilterChip(
+            selected = selected, onClick = onClick, enabled = enabled, modifier = modifier,
+            // Tebal huruf sama saat dipilih: chip tidak melebar dan tetangganya tidak bergeser.
+            label = { Text(text, style = PosType.Body, maxLines = 1) },
+            leadingIcon = icon?.let { { Icon(it, contentDescription = null, tint = if (selected) Pos.PrimaryPressed else iconTint ?: Pos.Text, modifier = Modifier.size(16.dp)) } },
+            shape = CircleShape,
+            colors = FilterChipDefaults.filterChipColors(
+                containerColor = Pos.Surface, labelColor = Pos.Text,
+                selectedContainerColor = Pos.PrimarySoftStrong, selectedLabelColor = Pos.PrimaryPressed,
+            ),
+            border = FilterChipDefaults.filterChipBorder(enabled = enabled, selected = selected, borderColor = Pos.Line, selectedBorderColor = Pos.PrimaryLine, borderWidth = 1.dp, selectedBorderWidth = 1.dp),
+        )
+        return
+    }
     val interaction = remember { MutableInteractionSource() }
     val background by animateColorAsState(if (selected) Pos.Ink else Pos.Surface, Pos.QuickColor, label = "chip-bg")
     val foreground by animateColorAsState(if (selected) Color.White else if (enabled) Pos.Text else Pos.Subtle, Pos.QuickColor, label = "chip-fg")
@@ -457,7 +574,7 @@ fun ChoiceChip(text: String, selected: Boolean, onClick: () -> Unit, modifier: M
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             if (icon != null) Icon(icon, contentDescription = null, tint = if (selected) Color.White else iconTint ?: foreground, modifier = Modifier.size(16.dp))
-            Text(text, style = if (selected) PosType.Label else PosType.Body, color = foreground, maxLines = 1)
+            Text(text, style = PosType.Body, color = foreground, maxLines = 1)
         }
     }
 }
@@ -490,7 +607,7 @@ fun HorizontalLine(modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun QuantityStepper(quantity: Int, onMinus: () -> Unit, onPlus: () -> Unit, modifier: Modifier = Modifier, compact: Boolean = false) {
+fun QuantityStepper(quantity: Int, onMinus: () -> Unit, onPlus: () -> Unit, modifier: Modifier = Modifier, compact: Boolean = false, minusEnabled: Boolean = true, plusEnabled: Boolean = true) {
     // Target ketuk minimal 44 dp (owner: tombol lama 32 dp mudah salah tekan);
     // tombol lebih lebar daripada tinggi supaya jari tidak meleset ke angka.
     val height = if (compact) Pos.Control else Pos.ControlLarge
@@ -501,25 +618,26 @@ fun QuantityStepper(quantity: Int, onMinus: () -> Unit, onPlus: () -> Unit, modi
             .border(1.dp, Pos.Line, RoundedCornerShape(Pos.Radius)),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        StepperKey("−", "Decrease quantity", keyWidth, height, onMinus)
+        StepperKey("−", "Decrease quantity", keyWidth, height, onMinus, minusEnabled)
         Text(quantity.toString(), style = PosType.Label, color = Pos.Ink, textAlign = TextAlign.Center, modifier = Modifier.width(if (compact) 36.dp else 44.dp))
-        StepperKey("+", "Increase quantity", keyWidth, height, onPlus)
+        StepperKey("+", "Increase quantity", keyWidth, height, onPlus, plusEnabled)
     }
 }
 
 @Composable
-private fun StepperKey(label: String, description: String, width: Dp, height: Dp, onClick: () -> Unit) {
+private fun StepperKey(label: String, description: String, width: Dp, height: Dp, onClick: () -> Unit, enabled: Boolean) {
     val haptics = LocalHapticFeedback.current
+    // Di batas (1 atau sisa stok) tombol meredup, jadi kasir tahu tidak bisa ditambah lagi.
     Box(
         modifier = Modifier
             .size(width, height)
-            .clickable(onClickLabel = description) {
+            .clickable(enabled = enabled, onClickLabel = description) {
                 haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                 onClick()
             },
         contentAlignment = Alignment.Center,
     ) {
-        Text(label, style = PosType.Heading, color = Pos.Ink)
+        Text(label, style = PosType.Heading, color = if (enabled) Pos.Ink else Pos.Subtle)
     }
 }
 
@@ -527,6 +645,9 @@ private fun StepperKey(label: String, description: String, width: Dp, height: Dp
 @Composable
 fun Numpad(onKey: (String) -> Unit, onBackspace: () -> Unit, modifier: Modifier = Modifier) {
     val haptics = LocalHapticFeedback.current
+    // Mengetuk papan angka menutup keyboard sistem yang masih terbuka (mis. sesudah
+    // mengisi deskripsi), supaya papan tidak tertutup dan fokus tidak ganda.
+    val focus = LocalFocusManager.current
     val rows = listOf(listOf("1", "2", "3"), listOf("4", "5", "6"), listOf("7", "8", "9"), listOf("00", "0", "⌫"))
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(Pos.Space2)) {
         rows.forEach { row ->
@@ -543,6 +664,7 @@ fun Numpad(onKey: (String) -> Unit, onBackspace: () -> Unit, modifier: Modifier 
                             .border(1.dp, Pos.Line, RoundedCornerShape(Pos.Radius))
                             .clickable(interactionSource = interaction, indication = null) {
                                 haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                focus.clearFocus()
                                 if (key == "⌫") onBackspace() else onKey(key)
                             },
                         contentAlignment = Alignment.Center,
@@ -696,6 +818,10 @@ fun appendDigits(current: String, key: String, maxDigits: Int = 10): String =
 // Tinggi mengikuti isi sampai 88% layar; ketuk di luar untuk menutup.
 @Composable
 fun PosDialog(onDismiss: () -> Unit, width: Dp = 560.dp, fixedHeight: Dp? = null, dismissOnOutside: Boolean = true, content: @Composable ColumnScope.() -> Unit) {
+    if (LocalCompact.current) {
+        PosSheet(onDismiss, fixedHeight != null, dismissOnOutside, content)
+        return
+    }
     val screenHeight = LocalConfiguration.current.screenHeightDp.dp
     // Lepas fokus layar di belakang (mis. kolom nama pelanggan); kalau tidak,
     // keyboard muncul lagi untuk kolom itu setiap kali dialog ditutup.
@@ -732,13 +858,39 @@ fun PosDialog(onDismiss: () -> Unit, width: Dp = 560.dp, fixedHeight: Dp? = null
     }
 }
 
+/** Jarak tepi isi dialog: 20 dp di sheet ponsel, 24 dp di dialog tablet (sejajar DialogHeader). */
+@Composable
+fun dialogInset(): Dp = if (LocalCompact.current) Pos.Space5 else Pos.Space6
+
+// Di ponsel setiap dialog menjadi bottom sheet Material bawaan: isi yang sama
+// (DialogHeader, DialogBody, DialogFooter), digeser naik oleh keyboard. Dialog
+// bertinggi tetap (pembayaran, daftar bill) memakai hampir seluruh layar.
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PosSheet(onDismiss: () -> Unit, tall: Boolean, dismissible: Boolean, content: @Composable ColumnScope.() -> Unit) {
+    val screenFocus = LocalFocusManager.current
+    LaunchedEffect(Unit) { screenFocus.clearFocus() }
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true, confirmValueChange = { dismissible || it != SheetValue.Hidden })
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        sheetGesturesEnabled = dismissible,
+        properties = ModalBottomSheetProperties(shouldDismissOnBackPress = dismissible),
+        containerColor = Pos.Surface,
+        shape = RoundedCornerShape(topStart = Pos.RadiusSheet, topEnd = Pos.RadiusSheet),
+        dragHandle = { androidx.compose.material3.BottomSheetDefaults.DragHandle(color = Pos.Line) },
+    ) {
+        Column(modifier = Modifier.fillMaxWidth().then(if (tall) Modifier.fillMaxHeight(0.94f) else Modifier).imePadding(), content = content)
+    }
+}
+
 // Isi dialog di antara DialogHeader dan DialogFooter. Bagian ini yang
 // menyusut dan bisa digulir saat keyboard terbuka; kolom yang difokuskan
 // digulir masuk ke layar, sementara judul dan tombol tetap terlihat.
 @Composable
 fun ColumnScope.DialogBody(spacing: Dp = Pos.Space4, content: @Composable ColumnScope.() -> Unit) {
     Column(
-        modifier = Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(Pos.Space6),
+        modifier = Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(if (LocalCompact.current) Pos.Space5 else Pos.Space6),
         verticalArrangement = Arrangement.spacedBy(spacing),
         content = content,
     )
@@ -748,14 +900,15 @@ fun ColumnScope.DialogBody(spacing: Dp = Pos.Space4, content: @Composable Column
 fun DialogHeader(title: String, subtitle: String? = null, onClose: (() -> Unit)?, leading: (@Composable () -> Unit)? = null) {
     // Atas, kanan, dan bawah sama 16 dp: tombol tutup berjarak sama dari sudut
     // dialog, seperti panel di dashboard dan Studio.
+    val compact = LocalCompact.current
     Row(
-        modifier = Modifier.fillMaxWidth().padding(start = Pos.Space6, end = Pos.Space4, top = Pos.Space4, bottom = Pos.Space4),
+        modifier = Modifier.fillMaxWidth().padding(start = if (compact) Pos.Space5 else Pos.Space6, end = Pos.Space4, top = if (compact) 0.dp else Pos.Space4, bottom = Pos.Space4),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Pos.Space3),
     ) {
         leading?.invoke()
         Column(modifier = Modifier.weight(1f)) {
-            Text(title, style = PosType.Title, color = Pos.Ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(title, style = if (compact) PosType.Heading else PosType.Title, color = Pos.Ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
             if (subtitle != null) Text(subtitle, style = PosType.BodySmall, color = Pos.Muted, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
         if (onClose != null) PosIconButton(Icons.Outlined.Close, "Close", onClose, outlined = false)
@@ -763,9 +916,22 @@ fun DialogHeader(title: String, subtitle: String? = null, onClose: (() -> Unit)?
     HorizontalLine()
 }
 
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun DialogFooter(hint: String? = null, hintTone: Tone = Tone.Neutral, content: @Composable RowScope.() -> Unit) {
     HorizontalLine()
+    if (LocalCompact.current) {
+        // Ponsel: keterangan di atas, tombol mengalir ke baris berikutnya bila tidak muat.
+        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = Pos.Space5, vertical = Pos.Space4).navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(Pos.Space3)) {
+            if (hint != null) Text(hint, style = PosType.Caption, color = if (hintTone == Tone.Neutral) Pos.Muted else hintTone.foreground())
+            androidx.compose.foundation.layout.FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(Pos.Space2, Alignment.End),
+                verticalArrangement = Arrangement.spacedBy(Pos.Space2),
+            ) { androidx.compose.runtime.CompositionLocalProvider(LocalFooterScope provides this) { content() } }
+        }
+        return
+    }
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = Pos.Space6, vertical = Pos.Space4),
         verticalAlignment = Alignment.CenterVertically,
@@ -787,6 +953,18 @@ fun ConfirmDialog(
     danger: Boolean = false,
     cancelLabel: String = "Keep",
 ) {
+    if (LocalCompact.current) {
+        AlertDialog(
+            onDismissRequest = onDismiss,
+            title = { Text(title, style = PosType.Title, color = Pos.Ink) },
+            text = { Text(body, style = PosType.Body, color = Pos.Muted) },
+            confirmButton = { TextButton(onClick = { onDismiss(); onConfirm() }, colors = ButtonDefaults.textButtonColors(contentColor = if (danger) Pos.Danger else Pos.PrimaryPressed)) { Text(confirmLabel, style = PosType.Label) } },
+            dismissButton = { TextButton(onClick = onDismiss, colors = ButtonDefaults.textButtonColors(contentColor = Pos.Text)) { Text(cancelLabel, style = PosType.Label) } },
+            containerColor = Pos.Surface,
+            shape = RoundedCornerShape(Pos.RadiusSheet),
+        )
+        return
+    }
     PosDialog(onDismiss = onDismiss, width = 440.dp) {
         Column(modifier = Modifier.padding(Pos.Space6), verticalArrangement = Arrangement.spacedBy(Pos.Space2)) {
             Text(title, style = PosType.Title, color = Pos.Ink)
@@ -802,6 +980,7 @@ fun ConfirmDialog(
 // Notifikasi singkat di atas layar; hilang sendiri. Error bertahan lebih lama.
 @Composable
 fun BoxScope.ToastHost(toast: ToastMessage?, onDismiss: () -> Unit) {
+    val compact = LocalCompact.current
     var visible by remember { mutableStateOf<ToastMessage?>(null) }
     LaunchedEffect(toast?.id) {
         if (toast == null) return@LaunchedEffect
@@ -814,16 +993,20 @@ fun BoxScope.ToastHost(toast: ToastMessage?, onDismiss: () -> Unit) {
         visible = visible != null,
         enter = slideInVertically { -it } + fadeIn(),
         exit = slideOutVertically { -it } + fadeOut(),
-        modifier = Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = Pos.Space4),
+        modifier = Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = if (compact) Pos.Space2 else Pos.Space4, start = Pos.Space4, end = Pos.Space4),
     ) {
         val message = visible ?: toast ?: return@AnimatedVisibility
+        // Kapsul selebar isinya (permintaan owner 14 Okt 2026): pesan pendek tetap ringkas di
+        // tengah, pesan panjang membungkus sampai 3 baris dalam lebar maksimum. Sama dengan
+        // toast dashboard. Ketuk untuk menutup.
         Row(
             modifier = Modifier
-                .widthIn(max = 560.dp)
+                .widthIn(max = if (compact) 480.dp else 520.dp)
+                .shadow(12.dp, RoundedCornerShape(Pos.RadiusCard), ambientColor = Color.Black.copy(alpha = 0.10f), spotColor = Color.Black.copy(alpha = 0.18f))
                 .clip(RoundedCornerShape(Pos.RadiusCard))
-                .background(Pos.Ink)
-                .clickable { visible = null; onDismiss() }
-                .padding(horizontal = Pos.Space4, vertical = Pos.Space3),
+                .background(if (message.tone == Tone.Danger) Pos.Danger else Pos.Ink)
+                .clickable(onClickLabel = "Dismiss") { visible = null; onDismiss() }
+                .padding(start = Pos.Space3, end = Pos.Space4, top = 10.dp, bottom = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(Pos.Space2),
         ) {
@@ -835,7 +1018,7 @@ fun BoxScope.ToastHost(toast: ToastMessage?, onDismiss: () -> Unit) {
                 },
                 contentDescription = null,
                 tint = when (message.tone) {
-                    Tone.Danger -> Color(0xFFFCA5A5)
+                    Tone.Danger -> Color.White
                     Tone.Warning -> Color(0xFFFCD34D)
                     Tone.Success -> Color(0xFF86EFAC)
                     else -> Color.White
@@ -901,8 +1084,9 @@ fun ApprovalFields(
             // yang menutup sendiri sesudah angka keenam.
             var entering by remember { mutableStateOf(false) }
             val pinShape = RoundedCornerShape(Pos.Radius)
-            Column(verticalArrangement = Arrangement.spacedBy(Pos.Space2)) {
-                Text("Manager PIN", style = PosType.Label, color = Pos.Ink)
+            // Label dan jarak sama dengan PosTextField, supaya sejajar dengan kolom Reason di atasnya.
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("Manager PIN", style = PosType.Caption.copy(fontWeight = PosType.Label.fontWeight), color = Pos.Text)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()

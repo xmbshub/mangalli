@@ -1,13 +1,13 @@
 "use client";
 
 import {
-  BadgePercent, BarChart3, Boxes, Building2, Check, ChevronsUpDown, ChevronUp, Coins, CookingPot, ExternalLink, Grid2X2, History, LayoutDashboard, LifeBuoy,
-  LogOut, QrCode, ReceiptText, Settings2, Store, UsersRound, WalletCards,
+  BadgePercent, BarChart3, Boxes, Building2, Check, ChevronsUpDown, ChevronUp, Coins, CookingPot, Ellipsis, ExternalLink, Grid2X2, History, LayoutDashboard, LifeBuoy,
+  LogOut, QrCode, ReceiptText, Settings2, Store, UsersRound, WalletCards, X,
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import { logoutAction, switchOutletAction } from "@/app/actions";
 import { AskEline } from "@/components/ask-eline";
@@ -47,6 +47,68 @@ const groups = [
 ];
 
 export type ShellOutlet = { key: string; name: string; isMain: boolean };
+
+type NavItem = (typeof groups)[number]["items"][number];
+
+// Ponsel (permintaan owner 14 Okt 2026): bilah bawah berisi menu utama, sisanya di
+// lembar "More" yang muncul dari bawah, dikelompokkan seperti sidebar. Bila menu
+// yang diizinkan perannya sedikit (kasir, viewer), semuanya langsung di bilah.
+const mobilePriority = ["/admin/dashboard", "/admin/orders", "/admin/products", "/admin/reports", "/admin/kitchen", "/admin/support"];
+
+function MobileTabBar({ visible, activePath, badge }: { visible: Array<{ title: string; items: NavItem[] }>; activePath: string; badge: Record<"orders" | "kitchen" | "problems", number> }) {
+  // Lembar terbuka untuk halaman tempat ia dibuka; pindah halaman otomatis menutupnya.
+  const [openAt, setOpenAt] = useState<string | null>(null);
+  const open = openAt === activePath;
+  const setOpen = (value: boolean) => setOpenAt(value ? activePath : null);
+  const items = visible.flatMap((group) => group.items);
+  const primary = items.length <= 5 ? items : mobilePriority.map((href) => items.find((item) => item.href === href)).filter((item): item is NavItem => Boolean(item)).slice(0, 4);
+  const rest = items.filter((item) => !primary.includes(item));
+  const isActive = (item: NavItem) => activePath === item.href || activePath.startsWith(`${item.href}/`);
+  const count = (item: NavItem) => ("count" in item && item.count ? badge[item.count] : 0);
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") setOpenAt(null); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
+  const restBadge = rest.reduce((total, item) => total + count(item), 0);
+  return (
+    <>
+      <nav aria-label="Dashboard" className="tabbar">
+        {primary.map((item) => {
+          const Icon = item.icon;
+          return <Link aria-current={isActive(item) ? "page" : undefined} className="tabbar-item" href={item.href} key={item.href}><span className="tabbar-icon"><Icon size={20} />{count(item) ? <span className="tabbar-badge">{count(item)}</span> : null}</span><span>{item.label}</span></Link>;
+        })}
+        {rest.length ? (
+          <button aria-expanded={open} aria-current={rest.some(isActive) ? "page" : undefined} className="tabbar-item" onClick={() => setOpen(!open)} type="button">
+            <span className="tabbar-icon"><Ellipsis size={20} />{restBadge ? <span className="tabbar-badge dot" /> : null}</span><span>More</span>
+          </button>
+        ) : null}
+      </nav>
+      {open ? (
+        <div className="sheet-backdrop" onClick={() => setOpen(false)}>
+          <div aria-label="More pages" aria-modal="true" className="sheet" onClick={(event) => event.stopPropagation()} role="dialog">
+            <span className="sheet-handle" />
+            <header className="sheet-head"><strong>More</strong><button aria-label="Close" className="icon-button" onClick={() => setOpen(false)} type="button"><X size={18} /></button></header>
+            {visible.map((group) => {
+              const groupItems = group.items.filter((item) => rest.includes(item));
+              if (!groupItems.length) return null;
+              return (
+                <section className="sheet-group" key={group.title}>
+                  <span className="nav-group">{group.title}</span>
+                  <div className="sheet-grid">{groupItems.map((item) => {
+                    const Icon = item.icon;
+                    return <Link aria-current={isActive(item) ? "page" : undefined} className="sheet-tile" href={item.href} key={item.href}><span className="sheet-tile-icon"><Icon size={20} />{count(item) ? <span className="tabbar-badge">{count(item)}</span> : null}</span><span>{item.label}</span></Link>;
+                  })}</div>
+                </section>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
+    </>
+  );
+}
 
 // Pemilih cabang: hanya tampil bila operator anggota lebih dari satu cabang.
 // Pilihan dikirim ke server, yang memeriksa ulang keanggotaannya.
@@ -111,6 +173,9 @@ export function DashboardShell({ children, counts, menuUrl, operator, outlets, r
   }, []);
   const sound = Boolean(menuUrl) && operations.includes(operator.role);
   const badge = { orders: counts.unpaid, kitchen: counts.fresh, problems: operator.role === "owner" || operator.role === "manager" ? counts.problems : 0 };
+  const visible = groups
+    .map((group) => ({ title: group.title, items: group.items.filter((item) => item.roles.includes(operator.role) && (!("branches" in item) || outlets.length > 1 || operator.role === "owner")) }))
+    .filter((group) => group.items.length);
   return (
     <div className="admin-shell">
       <aside className="sidebar">
@@ -120,9 +185,8 @@ export function DashboardShell({ children, counts, menuUrl, operator, outlets, r
         </Link>
         {outlets.length > 1 ? <OutletSwitcher current={operator.outletKey} outlets={outlets} /> : null}
         <nav className="sidebar-nav" aria-label="Dashboard">
-          {groups.map((group) => {
-            const items = group.items.filter((item) => item.roles.includes(operator.role) && (!("branches" in item) || outlets.length > 1 || operator.role === "owner"));
-            if (!items.length) return null;
+          {visible.map((group) => {
+            const items = group.items;
             return [
               <span className="nav-group" key={group.title}>{group.title}</span>,
               ...items.map((item) => {
@@ -141,11 +205,12 @@ export function DashboardShell({ children, counts, menuUrl, operator, outlets, r
         {children}
         <footer className="app-credit">Mangalli POS · <a href="https://1garis.id" rel="noreferrer" target="_blank">Developed by 1garis Studio</a></footer>
       </main>
+      <MobileTabBar activePath={activePath} badge={badge} visible={visible} />
       {sound ? <OrderAlerts /> : null}
       <Toaster />
       <ChartTips />
       <WhatsNew release={release} />
-      <AskEline role={operator.role} />
+      <AskEline name={operator.name} role={operator.role} />
     </div>
   );
 }

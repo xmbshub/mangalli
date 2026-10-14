@@ -384,8 +384,8 @@ export async function markMenuOrderPaid(client: PoolClient, input: { outletKey: 
     [input.method, input.orderId],
   );
   await client.query(
-    `UPDATE orders SET restaurant_status='new',status='pending',shift_id=coalesce(shift_id,$2),payment_due_at=NULL,updated_at=now() WHERE id=$1`,
-    [input.orderId, shift?.id ?? null],
+    `UPDATE orders SET restaurant_status='new',status='pending',shift_id=coalesce(shift_id,$2),payment_due_at=NULL,cashier_id=coalesce(cashier_id,$3),updated_at=now() WHERE id=$1`,
+    [input.orderId, shift?.id ?? null, input.actorId],
   );
   await client.query(
     `INSERT INTO pos_audit_logs(outlet_key,actor_id,action,auditable_type,auditable_id,metadata)

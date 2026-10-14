@@ -7,6 +7,7 @@ import id.mangalli.pos.offline.CatalogProductEntity
 import id.mangalli.pos.offline.LocalOrderEntity
 import id.mangalli.pos.offline.LocalShiftEntity
 import id.mangalli.pos.offline.OfflineOrders
+import id.mangalli.pos.offline.OpeningHour
 import id.mangalli.pos.security.OfflineStaff
 import org.json.JSONArray
 import java.text.SimpleDateFormat
@@ -32,6 +33,8 @@ data class OutletInfo(
     val customAmountMax: Double,
     // QRIS statis toko yang sah (kode publik merchant), dasar QRIS dinamis di layar dan cetakan.
     val qrisPayload: String? = null,
+    val openingHours: List<OpeningHour> = emptyList(),
+    val zone: java.time.ZoneId = java.time.ZoneId.systemDefault(),
 ) {
     val qrisReady: Boolean get() = qrisPayload != null
 }
@@ -78,6 +81,10 @@ data class SaleResult(val code: String, val total: Double, val methodLabel: Stri
 
 data class PaymentInput(val method: String, val tendered: Double, val reference: String)
 
+// Kasir yang mengambil pesanan (nama dari daftar kasir di tablet ini), untuk detail dan struk.
+fun PosUiState.cashierName(order: LocalOrderEntity): String? =
+    order.staffUserId?.let { id -> knownStaff.firstOrNull { it.userId == id }?.name }
+
 data class PosUiState(
     val screen: Screen,
     val currentStaff: OfflineStaff?,
@@ -97,6 +104,10 @@ data class PosUiState(
     val orders: List<LocalOrderEntity>,
     val history: List<LocalOrderEntity>,
     val shifts: List<LocalShiftEntity>,
+    // Ringkasan shift terbaru dan pesanan shift yang terbuka, dihitung dari semua
+    // pesanannya (riwayat hanya memuat 7 hari terakhir).
+    val shiftSummaries: Map<String, ShiftSummary> = emptyMap(),
+    val openShiftOrders: List<LocalOrderEntity> = emptyList(),
     val operations: OperationsState,
     val paymentOpen: Boolean,
     val saleResult: SaleResult?,
@@ -113,6 +124,10 @@ data class PosUiState(
     val activeOrders: List<LocalOrderEntity> get() = orders.filter { it.status in ACTIVE_STATUSES }
     val needsAttention: Int get() = orders.count { it.status == "pending_payment" || it.status == "new" }
     val canManage: Boolean get() = currentStaff?.role in MANAGER_ROLES
+    // Pesanan menu digital yang menunggu padahal belum ada shift terbuka (pengingat di Menu dan layar lain).
+    val menuOrdersWithoutShift: Int get() = if (operations.shift != null) 0 else orders.count { it.source == "menu" && (it.status == "pending_payment" || it.status == "new") }
+    fun summaryOf(shift: LocalShiftEntity): ShiftSummary =
+        shiftSummaries[shift.localUuid] ?: shiftSummaryOf(shift, history.filter { it.shiftLocalUuid == shift.localUuid })
 
     // Jumlah per baris yang sudah tersimpan di bill yang sedang dibuka; di bawah
     // angka ini item hanya bisa dikurangi lewat Void.

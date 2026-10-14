@@ -29,7 +29,13 @@ import androidx.compose.material.icons.outlined.Bluetooth
 import androidx.compose.material.icons.outlined.LocalPrintshop
 import androidx.compose.material.icons.outlined.ReceiptLong
 import androidx.compose.material.icons.outlined.Sync
+import androidx.compose.foundation.clickable
 import androidx.compose.material3.Icon
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
+import androidx.compose.ui.graphics.Color
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -51,6 +57,20 @@ import id.mangalli.pos.security.OfflineStaff
 
 @Composable
 fun SettingsScreen(state: PosUiState, actions: PosActions) {
+    if (LocalCompact.current) {
+        // Ponsel: kartu ditumpuk satu kolom; judul dan versi ada di TopAppBar.
+        Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(Pos.Space3)) {
+            SyncCard(state, actions, Modifier.fillMaxWidth())
+            OutletCard(state, actions, Modifier.fillMaxWidth())
+            TabletModeCard(state, actions)
+            PrinterCard(Modifier.fillMaxWidth())
+            CashiersCard(state, actions, Modifier.fillMaxWidth())
+            HelpCard(state, actions)
+            Text("Menu, prices, tax and tables come from the dashboard.", style = PosType.Caption, color = Pos.Muted, modifier = Modifier.padding(horizontal = Pos.Space1))
+            Text("Mangalli POS ${state.appVersion} · $BRAND_CREDIT · 1garis.id", style = PosType.Caption, color = Pos.Subtle, modifier = Modifier.padding(horizontal = Pos.Space1, vertical = Pos.Space2))
+        }
+        return
+    }
     Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(Pos.Space4)) {
         ScreenHeader("Settings", "${state.outlet.name} · Mangalli POS ${state.appVersion}")
         Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(Pos.Space4)) {
@@ -76,6 +96,7 @@ fun SettingsScreen(state: PosUiState, actions: PosActions) {
 @Composable
 private fun OutletCard(state: PosUiState, actions: PosActions, modifier: Modifier) {
     var confirm by remember { mutableStateOf(false) }
+    val device = deviceNoun()
     val risk = listOfNotNull(
         state.operations.shift?.let { "the open shift" },
         state.operations.unsynced.takeIf { it > 0 }?.let { "$it unsynced change(s)" },
@@ -96,18 +117,18 @@ private fun OutletCard(state: PosUiState, actions: PosActions, modifier: Modifie
         if (!state.canManage) Text("Owner or manager only.", style = PosType.Caption, color = Pos.Muted, modifier = Modifier.padding(bottom = Pos.Space2))
         Row(horizontalArrangement = Arrangement.spacedBy(Pos.Space3)) {
             PosButton(
-                if (state.update != null) "Update to ${state.update.versionName}" else "Check for updates",
+                if (state.update != null) "Update to ${state.update.versionName}" else if (LocalCompact.current) "Updates" else "Check for updates",
                 onClick = { if (state.update != null) actions.openUpdate() else actions.checkForUpdate() },
                 variant = ButtonVariant.Secondary,
                 modifier = Modifier.weight(1f),
             )
-            PosButton("Disconnect this tablet", onClick = { confirm = true }, variant = ButtonVariant.DangerSoft, enabled = state.canManage, modifier = Modifier.weight(1f))
+            PosButton(if (LocalCompact.current) "Disconnect" else "Disconnect this $device", onClick = { confirm = true }, variant = ButtonVariant.DangerSoft, enabled = state.canManage, modifier = Modifier.weight(1f))
         }
     }
     if (confirm) {
         ConfirmDialog(
-            title = "Disconnect this tablet?",
-            body = if (risk.isEmpty()) "Clears this tablet. Your data is safe on the dashboard."
+            title = "Disconnect this $device?",
+            body = if (risk.isEmpty()) "Clears this $device. Your data is safe on the dashboard."
             else "Also deletes ${risk.joinToString(" and ")}. Sync first.",
             confirmLabel = "Disconnect",
             danger = true,
@@ -144,7 +165,7 @@ private fun SyncCard(state: PosUiState, actions: PosActions, modifier: Modifier)
 private fun CashiersCard(state: PosUiState, actions: PosActions, modifier: Modifier) {
     var removing by remember { mutableStateOf<OfflineStaff?>(null) }
     PosCard(modifier = modifier) {
-        CardHeader("Cashiers on this tablet", "Can sign in offline.")
+        CardHeader("Cashiers on this ${deviceNoun()}", "Can sign in offline.")
         Spacer(Modifier.height(Pos.Space4))
         Column(verticalArrangement = Arrangement.spacedBy(Pos.Space3)) {
             state.knownStaff.forEach { staff ->
@@ -164,7 +185,7 @@ private fun CashiersCard(state: PosUiState, actions: PosActions, modifier: Modif
     removing?.let { staff ->
         ConfirmDialog(
             title = "Remove ${staff.name}?",
-            body = "${staff.name} can no longer sign in offline on this tablet. Their next sign-in needs internet.",
+            body = "${staff.name} can no longer sign in offline on this ${deviceNoun()}. Their next sign-in needs internet.",
             confirmLabel = "Remove",
             danger = true,
             onConfirm = { actions.forgetStaff(staff.email) },
@@ -271,7 +292,18 @@ private fun PrinterRow(icon: ImageVector, title: String, device: Pair<String?, S
 private fun TabletModeCard(state: PosUiState, actions: PosActions) {
     var unlocking by remember { mutableStateOf(false) }
     val mode = state.tabletMode
-    PosCard(modifier = Modifier.fillMaxWidth()) {
+    if (LocalCompact.current) {
+        PosCard(modifier = Modifier.fillMaxWidth(), padding = PaddingValues(vertical = Pos.Space2)) {
+            Column(modifier = Modifier.padding(horizontal = Pos.Space4, vertical = Pos.Space2)) { CardHeader("Counter mode", "For a phone that stays at the counter.") }
+            SwitchRow("Keep screen on", "Never dims while open.", mode.keepScreenOn) { actions.setKeepScreenOn(it) }
+            SwitchRow("Order sound", "Chimes for new digital menu orders.", mode.orderSound) { actions.setOrderSound(it) }
+            SwitchRow(
+                "Lock to Mangalli",
+                if (mode.locked) "Unlock to pair a printer or update." else "Blocks Home, recents and notifications.",
+                mode.locked,
+            ) { on -> if (on) actions.lockTablet() else if (state.canManage) actions.unlockTablet("") else unlocking = true }
+        }
+    } else PosCard(modifier = Modifier.fillMaxWidth()) {
         CardHeader("Tablet mode", "For a tablet that stays at the counter.")
         Spacer(Modifier.height(Pos.Space4))
         Row(horizontalArrangement = Arrangement.spacedBy(Pos.Space4)) {
@@ -313,28 +345,42 @@ private fun TabletModeCard(state: PosUiState, actions: PosActions) {
     }
     if (unlocking) {
         var error by remember { mutableStateOf<String?>(null) }
-        PinDialog("Unlock this tablet", "A manager or owner types their approval PIN.", onDismiss = { unlocking = false },
+        PinDialog("Unlock this ${deviceNoun()}", "A manager or owner types their approval PIN.", onDismiss = { unlocking = false },
             onComplete = { pin -> actions.unlockTablet(pin) { failed -> if (failed == null) unlocking = false else error = failed } },
             error = error, busy = state.isBusy, onEdit = { error = null })
     }
 }
 
+// Baris pengaturan ponsel: ListItem Material dengan Switch bawaan.
+@Composable
+private fun SwitchRow(title: String, subtitle: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+    ListItem(
+        headlineContent = { Text(title, style = PosType.Label, color = Pos.Ink) },
+        supportingContent = { Text(subtitle, style = PosType.Caption, color = Pos.Muted) },
+        trailingContent = {
+            Switch(checked = checked, onCheckedChange = onChange, colors = SwitchDefaults.colors(checkedTrackColor = Pos.Primary, checkedThumbColor = Color.White, uncheckedTrackColor = Pos.LineSoft, uncheckedBorderColor = Pos.Line, uncheckedThumbColor = Pos.Subtle))
+        },
+        colors = ListItemDefaults.colors(containerColor = Pos.Surface),
+        modifier = Modifier.clickable { onChange(!checked) },
+    )
+}
+
 @Composable
 private fun HelpCard(state: PosUiState, actions: PosActions) {
     var open by remember { mutableStateOf(false) }
-    PosCard(modifier = Modifier.fillMaxWidth()) {
+    PosCard(modifier = Modifier.fillMaxWidth(), padding = PaddingValues(if (LocalCompact.current) Pos.Space4 else Pos.Space5)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Pos.Space4)) {
             Column(modifier = Modifier.weight(1f)) {
                 CardHeader("Problems & help", "Crashes are reported automatically.")
             }
-            PosButton("Report a problem", onClick = { open = true }, variant = ButtonVariant.Secondary)
+            PosButton(if (LocalCompact.current) "Report" else "Report a problem", onClick = { open = true }, variant = ButtonVariant.Secondary)
         }
     }
     if (open) {
         var category by remember { mutableStateOf("payment") }
         var message by remember { mutableStateOf("") }
         PosDialog(onDismiss = { open = false }, width = 560.dp) {
-            DialogHeader("Report a problem", "Sent with this tablet's details.", onClose = { open = false })
+            DialogHeader("Report a problem", "Sent with this ${deviceNoun()}'s details.", onClose = { open = false })
             DialogBody {
                 androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(Pos.Space2), verticalArrangement = Arrangement.spacedBy(Pos.Space2)) {
                     listOf("payment" to "Payment", "printer" to "Printer", "sync" to "Sync", "menu" to "Menu", "error" to "Something broke", "other" to "Other").forEach { (key, label) ->

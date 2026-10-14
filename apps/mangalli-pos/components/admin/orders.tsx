@@ -89,7 +89,7 @@ export async function OrdersSection({ operator, tab, search, openId, from, to, s
       }))} />
       <FilterForm action="/admin/orders">
         {tab !== "all" ? <input name="tab" type="hidden" value={tab} /> : null}
-        <SearchField defaultValue={search} label="Search orders" placeholder="Search code, customer, or table" />
+        <SearchField defaultValue={search} label="Search orders" placeholder="Search code, customer, table, or cashier" />
         <DateField defaultValue={from} label="From date" max={to || undefined} name="from" placeholder="From date" submitOnChange />
         <DateField defaultValue={to} label="To date" min={from || undefined} name="to" placeholder="To date" submitOnChange />
         <Select defaultValue={sort} label="Sort" name="sort" options={[{ value: "newest", label: "Newest first" }, { value: "oldest", label: "Oldest first" }, { value: "highest", label: "Highest total" }]} submitOnChange />
@@ -97,16 +97,17 @@ export async function OrdersSection({ operator, tab, search, openId, from, to, s
       </FilterForm>
       <Panel>
         {rows.length ? (
-          <div className="table-wrap"><table>
-            <thead><tr><th>Order</th><th>Customer</th><th>Status</th><th className="hide-sm">Payment</th><th className="right">Total</th><th className="right">Action</th></tr></thead>
+          <div className="table-wrap cards"><table>
+            <thead><tr><th>Order</th><th>Customer</th><th className="hide-sm">Cashier</th><th>Status</th><th className="hide-sm">Payment</th><th className="right">Total</th><th className="right">Action</th></tr></thead>
             <tbody>{rows.map((row) => (
               <tr key={row.id}>
                 <td className="nowrap"><Link href={query({ order: row.id })} scroll={false}><strong>{row.order_code}</strong></Link><span className="cell-sub">{formatDateTime(row.created_at)}</span></td>
                 <td>{row.customer_name || "Walk-in"}<span className="cell-sub">{where(row)}{row.from_tablet ? " · Tablet" : ""}</span></td>
-                <td><Badge value={row.restaurant_status} />{row.restaurant_status === "pending_payment" && row.payment_due_at ? <span className="cell-sub">Pay by {formatTime(row.payment_due_at)}</span> : null}</td>
+                <td className="hide-sm">{row.cashier_name ?? <span className="muted">{row.from_tablet ? "—" : "Digital menu"}</span>}</td>
+                <td className="end"><Badge value={row.restaurant_status} />{row.restaurant_status === "pending_payment" && row.payment_due_at ? <span className="cell-sub">Pay by {formatTime(row.payment_due_at)}</span> : null}</td>
                 <td className="hide-sm"><Badge kind="payment" value={row.payment_status} /><span className="cell-sub">{paymentMethodLabel[row.payment_method ?? ""] ?? row.payment_method ?? "—"}</span></td>
-                <td className="right num">{formatIdr(Number(row.amount ?? 0))}</td>
-                <td className="right"><div className="row-actions"><OrderActions order={row} /></div></td>
+                <td className="right num end">{formatIdr(Number(row.amount ?? 0))}</td>
+                <td className="right row-end"><div className="row-actions"><OrderActions order={row} /></div></td>
               </tr>
             ))}</tbody>
           </table></div>
@@ -119,10 +120,13 @@ export async function OrdersSection({ operator, tab, search, openId, from, to, s
           <dl className="detail-list">
             <dt>Customer</dt><dd>{detail.order.customer_name || "Walk-in"}</dd>
             <dt>Service</dt><dd>{where(detail.order)}</dd>
+            <dt>Cashier</dt><dd>{detail.order.cashier_name ?? (detail.order.from_tablet ? "Not recorded" : detail.order.restaurant_status === "pending_payment" ? "Not paid yet" : "Digital menu")}</dd>
             <dt>Payment</dt><dd>{paymentMethodLabel[detail.order.payment_method ?? ""] ?? detail.order.payment_method ?? "—"}{detail.order.paid_at ? ` · paid ${formatTime(detail.order.paid_at)}` : ""}</dd>
             {detail.order.restaurant_status === "pending_payment" && detail.order.payment_due_at ? <><dt>Pay by</dt><dd>{formatTime(detail.order.payment_due_at)}</dd></> : null}
             {detail.order.notes ? <><dt>Notes</dt><dd>{detail.order.notes}</dd></> : null}
             {detail.order.void_reason ? <><dt>Cancel reason</dt><dd>{detail.order.void_reason}</dd></> : null}
+            {detail.order.voided_by_name ? <><dt>Cancelled by</dt><dd>{detail.order.voided_by_name}{detail.order.voided_at ? ` · ${formatTime(detail.order.voided_at)}` : ""}</dd></> : null}
+            {detail.order.refunded_at ? <><dt>Refunded</dt><dd>{[detail.order.refunded_by_name, formatDateTime(detail.order.refunded_at), detail.order.refund_reason].filter(Boolean).join(" · ")}</dd></> : null}
           </dl>
           <div className="line-items">
             {detail.items.map((item, index) => (

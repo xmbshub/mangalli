@@ -50,7 +50,7 @@ class SyncEngine(
     fun syncNow(reason: String, legacyFlush: () -> Int): SyncOutcome {
         val device = deviceToken() ?: throw IllegalStateException("Sign in to the POS online once before syncing.")
         val staff = staffToken() ?: throw IllegalStateException("Sign in to the POS online once before syncing.")
-        if (!isOnline()) throw IllegalStateException("No internet connection. Everything stays saved on this tablet.")
+        if (!isOnline()) throw IllegalStateException("No internet connection. Everything stays saved on this device.")
 
         legacyFlush()
         val rejected = mutableListOf<String>()

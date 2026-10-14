@@ -2,10 +2,13 @@ package id.mangalli.pos.ui
 
 import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -74,6 +77,17 @@ object Pos {
     val Field = 56.dp
 }
 
+// Mode ponsel (permintaan owner 14 Okt 2026): layar dengan sisi terpendek < 600 dp.
+// Di ponsel komponen dasar memakai komponen Material 3 bawaan Android (Button,
+// FilterChip, SegmentedButton, ModalBottomSheet, AlertDialog, Snackbar) dan
+// kerangkanya TopAppBar + NavigationBar; tablet tetap seperti sebelumnya.
+// Warna, sudut, dan huruf tetap dari token yang sama.
+val LocalCompact = staticCompositionLocalOf { false }
+
+/** "phone" atau "tablet" untuk teks yang menyebut perangkat ini. */
+@Composable
+fun deviceNoun(): String = if (LocalCompact.current) "phone" else "tablet"
+
 enum class Tone { Neutral, Primary, Success, Warning, Danger, Info }
 
 fun Tone.foreground(): Color = when (this) {
@@ -117,8 +131,18 @@ fun MangalliTheme(content: @Composable () -> Unit) {
             primaryContainer = Pos.PrimarySoftStrong,
             onPrimaryContainer = Pos.PrimaryPressed,
             secondary = Pos.Primary,
+            secondaryContainer = Pos.PrimarySoftStrong,
+            onSecondaryContainer = Pos.PrimaryPressed,
             surface = Pos.Surface,
+            surfaceTint = Pos.Surface,
+            surfaceContainerLowest = Pos.Surface,
+            surfaceContainerLow = Pos.Surface,
+            surfaceContainer = Pos.Surface,
+            surfaceContainerHigh = Pos.Surface,
             surfaceContainerHighest = Pos.LineSoft,
+            inverseSurface = Pos.Ink,
+            inverseOnSurface = Color.White,
+            inversePrimary = Pos.PrimaryLine,
             background = Pos.Canvas,
             onSurface = Pos.Ink,
             onSurfaceVariant = Pos.Muted,
@@ -137,6 +161,13 @@ fun MangalliTheme(content: @Composable () -> Unit) {
             labelLarge = PosType.Label,
             labelMedium = PosType.Caption.copy(fontWeight = FontWeight.Medium),
             labelSmall = PosType.Micro,
+        ),
+        shapes = Shapes(
+            extraSmall = RoundedCornerShape(Pos.RadiusSmall),
+            small = RoundedCornerShape(Pos.RadiusSmall),
+            medium = RoundedCornerShape(Pos.Radius),
+            large = RoundedCornerShape(Pos.RadiusCard),
+            extraLarge = RoundedCornerShape(Pos.RadiusSheet),
         ),
         content = content,
     )

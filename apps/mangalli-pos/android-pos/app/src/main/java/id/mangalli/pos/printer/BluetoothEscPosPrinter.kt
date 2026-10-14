@@ -84,6 +84,8 @@ data class SalePrintData(
     // memindainya dari kertas seperti struk mesin EDC.
     val qrisPayload: String? = null,
     val qrisMerchant: String? = null,
+    // Kasir yang melayani, untuk audit struk (permintaan owner 13 Okt 2026).
+    val cashierName: String? = null,
 )
 
 class BluetoothPrinterStore(context: Context) {
@@ -351,6 +353,7 @@ object EscPos58mm {
         pair("Time", timestamp())
         pair("Customer", data.customerName)
         pair("Order", data.orderContext)
+        data.cashierName?.takeIf(String::isNotBlank)?.let { pair("Cashier", it) }
         line(separator())
     }
 

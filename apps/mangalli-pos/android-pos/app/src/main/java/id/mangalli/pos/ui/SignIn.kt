@@ -68,6 +68,40 @@ fun SignInScreen(state: PosUiState, actions: PosActions) {
     var selectedEmail by rememberSaveable { mutableStateOf<String?>(null) }
     val showPicker = state.deviceRegistered && state.knownStaff.isNotEmpty() && !useForm
 
+    if (LocalCompact.current) {
+        // Ponsel: satu kolom; merek dan status di atas, masuk di bawahnya.
+        Column(
+            modifier = Modifier.fillMaxSize().background(Pos.Surface).statusBarsPadding().navigationBarsPadding().imePadding()
+                .verticalScroll(rememberScrollState()).padding(horizontal = Pos.Space5, vertical = Pos.Space6),
+            verticalArrangement = Arrangement.spacedBy(Pos.Space6),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Pos.Space3)) {
+                Box(
+                    modifier = Modifier.size(44.dp).clip(RoundedCornerShape(Pos.Radius)).background(Pos.Surface).border(1.dp, Pos.Line, RoundedCornerShape(Pos.Radius)),
+                    contentAlignment = Alignment.Center,
+                ) { Image(painterResource(R.drawable.mangalli_logo), contentDescription = null, modifier = Modifier.size(28.dp)) }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(if (state.deviceRegistered) state.outlet.name else "Mangalli POS", style = PosType.Heading, color = Pos.Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text("Mulai jualan, tanpa ribet.", style = PosType.Caption, color = Pos.Muted)
+                }
+                Pill(if (state.operations.isOnline) "Online" else "Offline", if (state.operations.isOnline) Tone.Success else Tone.Neutral, icon = if (state.operations.isOnline) Icons.Outlined.Wifi else Icons.Outlined.CloudOff)
+            }
+            clockDriftLabel(state.operations.clockOffsetMillis)?.let { drift -> InfoBanner("This phone's clock is $drift. Fix it in Android settings.", tone = Tone.Warning) }
+            AnimatedContent(targetState = if (showPicker) "picker" else "form", transitionSpec = { fadeIn(tween(120)) togetherWith ExitTransition.None }, label = "sign-in-mode-mobile") { mode ->
+                if (mode == "picker") {
+                    StaffPicker(state, selectedEmail, { selectedEmail = it }, { email, password -> actions.signIn(state.savedOutletKey, email, password) }, { useForm = true; selectedEmail = null })
+                } else {
+                    AccountForm(state, actions::signIn, if (state.deviceRegistered && state.knownStaff.isNotEmpty()) ({ useForm = false }) else null)
+                }
+            }
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Pos.Space2), modifier = Modifier.fillMaxWidth()) {
+                ServerLine(state, actions)
+                Text(BRAND_CREDIT, style = PosType.Caption, color = Pos.Subtle)
+            }
+        }
+        return
+    }
+
     Row(modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
         BrandPanel(state, actions, modifier = Modifier.weight(1f).fillMaxHeight())
         Box(
@@ -243,7 +277,7 @@ private fun AccountForm(state: PosUiState, onSubmit: (String, String, String) ->
             PosButton("Back", onClick = onBack, variant = ButtonVariant.Ghost, size = ButtonSize.Small, icon = Icons.AutoMirrored.Outlined.ArrowBack)
         }
         Column(verticalArrangement = Arrangement.spacedBy(Pos.Space1)) {
-            Text(if (state.deviceRegistered) "Sign in" else "Connect this tablet", style = PosType.Title, color = Pos.Ink)
+            Text(if (state.deviceRegistered) "Sign in" else if (LocalCompact.current) "Connect this phone" else "Connect this tablet", style = PosType.Title, color = Pos.Ink)
             Text(
                 if (state.deviceRegistered) "Use your Mangalli account."
                 else "Owner or manager account.",

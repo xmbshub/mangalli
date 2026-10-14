@@ -7,9 +7,11 @@ import { dashboardData } from "@/server/admin";
 import { outletFormat } from "@/server/format";
 import { formatIdr } from "@/server/pos";
 
+const hoursAgo = (minutes: number) => (minutes < 120 ? `${minutes} min` : `${Math.floor(minutes / 60)} h`);
+
 export async function DashboardSection({ operator }: { operator: Operator }) {
   const data = await dashboardData(operator);
-  const { formatDateTime, formatTime, todayLabel } = outletFormat(operator.timezone);
+  const { formatDateTime, todayLabel } = outletFormat(operator.timezone);
   const change = data.yesterdaySameTime ? (data.sales - data.yesterdaySameTime) / data.yesterdaySameTime : null;
   const attention = data.unpaid + data.kitchen;
   const peak = Math.max(...data.byHour, 1);
@@ -53,14 +55,14 @@ export async function DashboardSection({ operator }: { operator: Operator }) {
 
         <Panel className="span-8 row-2" title="Latest orders" action={canSeeOrders ? <Link className="button small ghost" href="/admin/orders">View all</Link> : undefined}>
           {data.recent.length ? (
-            <div className="table-wrap"><table>
+            <div className="table-wrap cards"><table>
               <thead><tr><th>Order</th><th>Customer</th><th>Status</th><th className="right">Total</th></tr></thead>
               <tbody>{data.recent.map((row) => (
                 <tr key={row.id}>
                   <td className="nowrap">{canSeeOrders ? <Link href={`/admin/orders?order=${row.id}`}><strong>{row.order_code}</strong></Link> : <strong>{row.order_code}</strong>}<span className="cell-sub">{formatDateTime(row.created_at)}</span></td>
                   <td>{row.customer_name || "Walk-in"}</td>
-                  <td><Badge value={row.restaurant_status} /></td>
-                  <td className="right num">{formatIdr(Number(row.amount ?? 0))}</td>
+                  <td className="end"><Badge value={row.restaurant_status} /></td>
+                  <td className="right num end">{formatIdr(Number(row.amount ?? 0))}</td>
                 </tr>
               ))}</tbody>
             </table></div>
@@ -71,10 +73,12 @@ export async function DashboardSection({ operator }: { operator: Operator }) {
             <div className="list-row" key={item.name}><span><strong>{index + 1}. {item.name}</strong><span className="cell-sub">{formatIdr(item.revenue)}</span></span><span className="num muted">{item.qty} sold</span></div>
           ))}</div> : <EmptyState title="Nothing sold yet" />}
         </Panel>
-        <Panel className="span-4" title="Cashier shift" action={<Badge value={data.openShift ? "open" : "closed"} />}>
+        <Panel className="span-4" title="Cashier shift" action={data.openShift?.closedMinutesAgo ? <span className="badge tone-warning">Past closing</span> : <Badge value={data.openShift ? "open" : "closed"} />}>
           {data.openShift ? (
-            <div className="panel-body"><dl className="detail-list">
-              <dt>Opened</dt><dd>{formatTime(data.openShift.opened_at)}</dd>
+            <div className="panel-body">
+              {data.openShift.closedMinutesAgo ? <p className="notice">Closed {hoursAgo(data.openShift.closedMinutesAgo)} ago. Close this shift on the tablet.</p> : null}
+              <dl className="detail-list">
+              <dt>Opened</dt><dd>{formatDateTime(data.openShift.opened_at)}{data.openShift.opened_by ? ` · ${data.openShift.opened_by}` : ""}</dd>
               <dt>Opening cash</dt><dd className="num">{formatIdr(Number(data.openShift.opening_cash))}</dd>
               <dt>Cash sales</dt><dd className="num">{formatIdr(Number(data.openShift.cash_payment_total))}</dd>
               <dt>Digital sales</dt><dd className="num">{formatIdr(Number(data.openShift.digital_payment_total))}</dd>

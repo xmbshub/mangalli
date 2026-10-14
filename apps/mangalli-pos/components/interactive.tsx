@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, Info, LoaderCircle, Plus, Search, Upload, X } from "lucide-react";
+import { CalendarDays, Check, ChevronDown, CircleAlert, ChevronLeft, ChevronRight, Copy, Info, LoaderCircle, Plus, Search, Upload, X } from "lucide-react";
 import Form from "next/form";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -43,7 +43,7 @@ export function Toaster() {
     <div aria-live="polite" className="toasts">
       {toasts.map((toast) => (
         <div className={`toast ${toast.tone}`} key={toast.id} role={toast.tone === "error" ? "alert" : "status"}>
-          {toast.tone === "ok" ? <Check size={16} /> : <Info size={16} />}
+          {toast.tone === "ok" ? <Check size={16} /> : <CircleAlert size={16} />}
           <span>{toast.message}</span>
           <button aria-label="Dismiss" onClick={() => setToasts((current) => current.filter((item) => item.id !== toast.id))} type="button"><X size={14} /></button>
         </div>
@@ -117,7 +117,8 @@ export function ActionForm({ action, children, className = "form", confirm, conf
 export function ConfirmDialog({ message, label, onCancel, onConfirm }: { message: string; label: string; onCancel: () => void; onConfirm: () => void }) {
   const confirmButton = useRef<HTMLButtonElement>(null);
   useEffect(() => {
-    confirmButton.current?.focus();
+    // Fokus untuk Enter/Esc, tanpa cincin fokus (cincin hanya saat berpindah dengan Tab).
+    confirmButton.current?.focus({ focusVisible: false } as FocusOptions);
     const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); onCancel(); } };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);

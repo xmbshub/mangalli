@@ -56,16 +56,16 @@ export async function SupportSection({ operator, status, open, creating, page }:
       ]} />
       <Panel>
         {data.rows.length ? (
-          <div className="table-wrap"><table>
+          <div className="table-wrap cards"><table>
             <thead><tr><th>Problem</th><th>Type</th><th className="hide-sm">From</th><th className="right">Times</th><th className="hide-sm">Last seen</th><th /></tr></thead>
             <tbody>{data.rows.map((row) => (
               <tr key={row.id}>
                 <td><Link href={withParam("report", row.id)} scroll={false}><strong>{row.title}</strong></Link>{row.message && row.message !== row.title ? <span className="cell-sub clamp-1">{row.message}</span> : null}</td>
-                <td><CategoryBadge category={row.category} /></td>
+                <td className="end"><CategoryBadge category={row.category} /></td>
                 <td className="hide-sm">{sources[row.source] ?? row.source}<span className="cell-sub">{row.reporter ?? (typeof row.context.device === "string" ? row.context.device : "—")}</span></td>
-                <td className="right num">{row.occurrences}</td>
+                <td className="right num" data-label="Times">{row.occurrences}</td>
                 <td className="hide-sm num nowrap">{formatDateTime(row.last_seen_at)}</td>
-                <td className="right"><Link className="button small ghost" href={withParam("report", row.id)} scroll={false}>View</Link></td>
+                <td className="right hide-sm"><Link className="button small ghost" href={withParam("report", row.id)} scroll={false}>View</Link></td>
               </tr>
             ))}</tbody>
           </table></div>

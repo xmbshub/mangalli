@@ -68,7 +68,7 @@ export async function OutletSection({ operator }: { operator: Operator }) {
               <FormFooter><SubmitButton pendingLabel="Saving…">Save</SubmitButton></FormFooter>
             </ActionForm>
           </Panel>
-          <Panel padded title="Opening hours" description="When the digital menu takes orders.">
+          <Panel padded title="Opening hours" description="When the digital menu takes orders." info="Only the digital menu follows these hours. The cashier tablet sells whenever a shift is open, and opening or closing a shift doesn't change these hours. The daily report email goes out 30 minutes after closing.">
             <ActionForm action={saveOpeningHoursAction}>
               <div className="hours-list">{weekdays.map((key) => {
                 const hour = hours.get(key);

@@ -3,10 +3,49 @@
 Version numbers follow the cashier tablet app. Each version also includes the
 dashboard changes released with it.
 
-## Unreleased
+## 0.9.0
 
 - Pin the dashboard to Next.js 16.4.0, matching the maintained platform
-  dependency version. The cashier tablet remains at version 0.8.9.
+  dependency version.
+- Bills and receipts print the cashier, and the tablet order detail shows
+  who served the order.
+- The Android app runs on phones: an upright layout with a bottom navigation
+  bar, a two-column menu, the order as its own screen, and native Android
+  controls (bottom sheets, dialogs, chips, switches). Tablets keep their
+  layout.
+- Toasts on the dashboard and the app size to their message (short ones stay
+  compact, long ones wrap), with a status icon; errors are red.
+- Phone details: the keyboard never covers the order total, Charge, or sheet
+  buttons; scrolling the menu closes the search keyboard; tapping the keypad
+  closes the system keyboard; pull down to refresh Orders; open bills from
+  the Menu top bar; a short vibration when a payment completes; quantity
+  buttons dim at their limit; chips keep their width when selected.
+- "Lock to Mangalli" turns on only after Android confirms the lock; "No
+  thanks" leaves it off.
+- The payment button ignores a double tap carried over from the order screen.
+- Messages say "phone" or "tablet" to match the device.
+- Dashboard on phones: a bottom tab bar with More, tables shown as cards,
+  tidy two-column filters, full-screen drawers that slide up, bigger switches,
+  page buttons and range buttons, a stacked kitchen board, and no zoom when
+  typing on iPhone.
+- Tablet: a reminder when a shift is still open 2 hours after closing time,
+  and when digital menu orders wait while no shift is open. The dashboard
+  Overview marks such a shift "Past closing".
+- Tablet: a shift that stayed open for more than 7 days shows its real orders
+  and cash difference instead of zero orders.
+- Dashboard: "Add product" sets up option groups (variants) before saving.
+- Orders show the cashier in the list, search and detail, plus who cancelled
+  or refunded an order.
+- Option group cards no longer clip their corners; edit and add group share
+  one compact row.
+- Store QRIS accepts PDF and SVG files, and its saved state is a card with
+  the merchant name instead of text next to the button.
+- PDF reports: columns fit their content, long text wraps, totals, stat cards,
+  readable dates and statuses, and landscape pages for wide tables.
+- Ask Eline: a cleaner chat panel, proper tables, code, charts and a Copy
+  button.
+- The Ask Eline button and the credit line sit 12 px from the bottom, level
+  with the sidebar.
 
 ## 0.8.9
 

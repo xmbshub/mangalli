@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUp, FileSpreadsheet, FileText, RotateCcw, Sparkles, X } from "lucide-react";
+import { ArrowRight, ArrowUp, BarChart3, Check, Copy, Download, FileSpreadsheet, FileText, SquarePen, Sparkles, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
@@ -12,73 +12,176 @@ type Message = { role: "user" | "assistant"; content: string };
 
 const STORAGE_KEY = "mangalli:ask-eline";
 
-// Tebal dan tautan markdown. Tautan file Eline (/api/assistant/files/…) menjadi
-// tombol unduh dengan ikon Excel atau PDF; tautan lain tetap tautan biasa.
+// Inline markdown: **tebal**, *miring*, `kode`, dan tautan. Tautan file Eline
+// (/api/assistant/files/…) menjadi tombol unduh dengan ikon Excel atau PDF.
 function inline(text: string): ReactNode[] {
-  return text.split(/(\*\*[^*]+\*\*|\[[^\]]+\]\([^)\s]+\))/g).map((part, index) => {
-    if (part.startsWith("**") && part.endsWith("**")) return <strong key={index}>{part.slice(2, -2)}</strong>;
+  return text.split(/(\*\*[^*]+\*\*|`[^`]+`|\[[^\]]+\]\([^)\s]+\)|(?<![\w*])\*[^*\s][^*]*\*(?!\w))/g).map((part, index) => {
+    if (!part) return null;
+    if (part.startsWith("**") && part.endsWith("**")) return <strong key={index}>{inline(part.slice(2, -2))}</strong>;
+    if (part.startsWith("`") && part.endsWith("`") && part.length > 2) return <code key={index}>{part.slice(1, -1)}</code>;
+    if (/^\*[^*].*\*$/.test(part)) return <em key={index}>{part.slice(1, -1)}</em>;
     const link = part.match(/^\[([^\]]+)\]\(([^)\s]+)\)$/);
     if (link) {
       const [, label, href] = link;
       if (href.startsWith("/api/assistant/files/")) {
-        const Icon = /\.pdf\b/i.test(label) ? FileText : FileSpreadsheet;
-        return <a className="ask-eline-file" download href={href} key={index}><Icon size={18} /><span>{label.replace(/^Download\s+/i, "")}</span><small>Download</small></a>;
+        const pdf = /\.pdf\b/i.test(label);
+        const Icon = pdf ? FileText : FileSpreadsheet;
+        return <a className="ask-eline-file" download href={href} key={index}><span className={`ask-eline-file-icon${pdf ? " pdf" : ""}`}><Icon size={18} /></span><span><strong>{label.replace(/^Download\s+/i, "")}</strong><small>{pdf ? "PDF" : "Excel"} · Download</small></span><Download size={16} /></a>;
       }
       // Draf menu dari prepare_menu_draft: tombol ke halaman periksa (panel chat tetap terbuka).
-      if (href.startsWith("/admin/products/import?draft=")) return <Link className="ask-eline-file" href={href} key={index}><Sparkles size={18} /><span>{label}</span><small>Review</small></Link>;
-      if (/^(https?:\/\/|\/)/.test(href)) return <a className="link" href={href} key={index} rel="noreferrer" target={href.startsWith("/") ? undefined : "_blank"}>{label}</a>;
+      if (href.startsWith("/admin/products/import?draft=")) return <Link className="ask-eline-file" href={href} key={index}><span className="ask-eline-file-icon"><Sparkles size={18} /></span><span><strong>{label}</strong><small>Nothing is saved yet</small></span><ArrowRight size={16} /></Link>;
+      if (/^(https?:\/\/|\/(?![/\\]))/.test(href)) return <a className="link" href={href} key={index} rel="noreferrer" target={href.startsWith("/") ? undefined : "_blank"}>{label}</a>;
     }
     return <Fragment key={index}>{part}</Fragment>;
   });
 }
 
-// Markdown secukupnya: paragraf, judul, garis, kutipan, tabel, daftar, tebal, tautan.
+// Angka sel tabel (Rp 1.250.000, 12%, -3) rata kanan seperti tabel dashboard.
+const numeric = (cell: string) => /^[-−+]?\s*(Rp\s?)?[\d.,]+\s*(%|x|×|rb|k|jt)?$/i.test(cell.replace(/\*\*/g, "").trim());
+
+// Grafik dari blok ```chart berisi JSON (lihat instruksi di server/assistant.ts):
+// batang mendatar untuk peringkat, kolom tegak untuk deret waktu, opsional
+// `compare` (periode sebelumnya) sebagai batang pucat.
+type Chart = { type?: "bar" | "column"; title?: string; unit?: string; labels: string[]; values: number[]; compare?: number[]; compareLabel?: string; valueLabel?: string };
+function parseChart(source: string): Chart | null {
+  try {
+    const chart = JSON.parse(source) as Chart;
+    if (!Array.isArray(chart.labels) || !Array.isArray(chart.values) || !chart.labels.length || chart.labels.length !== chart.values.length) return null;
+    if (chart.values.some((value) => typeof value !== "number" || !Number.isFinite(value))) return null;
+    return { ...chart, labels: chart.labels.slice(0, 31).map(String), values: chart.values.slice(0, 31), compare: Array.isArray(chart.compare) && chart.compare.length === chart.values.length ? chart.compare.slice(0, 31) : undefined };
+  } catch {
+    return null;
+  }
+}
+const chartNumber = (value: number, unit = "") => {
+  const text = Math.abs(value) >= 1_000_000 ? `${(value / 1_000_000).toLocaleString("id-ID", { maximumFractionDigits: 1 })} jt` : Math.abs(value) >= 10_000 ? `${Math.round(value / 1000).toLocaleString("id-ID")} rb` : value.toLocaleString("id-ID");
+  return unit.toLowerCase() === "rp" ? `Rp ${text}` : unit ? `${text}${unit.startsWith("%") ? "" : " "}${unit}` : text;
+};
+
+function ChartBlock({ chart }: { chart: Chart }) {
+  const max = Math.max(1, ...chart.values, ...(chart.compare ?? []));
+  const legend = chart.compare ? <div className="ask-chart-legend"><span><i />{chart.valueLabel ?? "This period"}</span><span><i className="soft" />{chart.compareLabel ?? "Previous"}</span></div> : null;
+  if (chart.type === "column") {
+    return (
+      <figure className="ask-chart">
+        {chart.title ? <figcaption>{chart.title}</figcaption> : null}
+        <div className="ask-chart-columns" style={{ gridTemplateColumns: `repeat(${chart.values.length}, minmax(0, 1fr))` }}>
+          {chart.values.map((value, index) => (
+            <div className="ask-chart-column" key={index} title={`${chart.labels[index]}: ${chartNumber(value, chart.unit)}`}>
+              <div className="ask-chart-stack">
+                {chart.compare ? <span className="soft" style={{ height: `${(chart.compare[index] / max) * 100}%` }} /> : null}
+                <span style={{ height: `${(Math.max(0, value) / max) * 100}%`, animationDelay: `${index * 30}ms` }} />
+              </div>
+              <small>{chart.labels[index]}</small>
+            </div>
+          ))}
+        </div>
+        {legend}
+      </figure>
+    );
+  }
+  return (
+    <figure className="ask-chart">
+      {chart.title ? <figcaption>{chart.title}</figcaption> : null}
+      <div className="ask-chart-bars">
+        {chart.values.map((value, index) => (
+          <div className="ask-chart-row" key={index}>
+            <span className="ask-chart-label">{chart.labels[index]}</span>
+            <span className="ask-chart-track">
+              {chart.compare ? <span className="soft" style={{ width: `${(chart.compare[index] / max) * 100}%` }} /> : null}
+              <span style={{ width: `${(Math.max(0, value) / max) * 100}%`, animationDelay: `${index * 40}ms` }} />
+            </span>
+            <span className="ask-chart-value">{chartNumber(value, chart.unit)}</span>
+          </div>
+        ))}
+      </div>
+      {legend}
+    </figure>
+  );
+}
+
+// Markdown secukupnya: judul, paragraf, daftar, kutipan, garis, tabel (dengan
+// perataan kolom), blok kode, dan grafik. Blok yang belum selesai saat jawaban
+// masih mengalir tetap tampil (kode) atau menunggu (grafik).
 function Rich({ text }: { text: string }) {
   const blocks: ReactNode[] = [];
-  let list: { ordered: boolean; items: string[] } | null = null;
+  let list: { ordered: boolean; start: number; items: string[] } | null = null;
   let table: string[][] | null = null;
+  let align: Array<"left" | "right" | undefined> = [];
+  let quote: string[] | null = null;
   const flush = () => {
     if (list) {
-      const Tag = list.ordered ? "ol" : "ul";
-      blocks.push(<Tag key={blocks.length}>{list.items.map((item, index) => <li key={index}>{inline(item)}</li>)}</Tag>);
+      const items = list.items.map((item, index) => <li key={index}>{inline(item)}</li>);
+      blocks.push(list.ordered ? <ol key={blocks.length} start={list.start}>{items}</ol> : <ul key={blocks.length}>{items}</ul>);
       list = null;
     }
     if (table) {
       const [head, ...body] = table;
-      blocks.push(<div className="ask-eline-table" key={blocks.length}><table><thead><tr>{head.map((cell, index) => <th key={index}>{inline(cell)}</th>)}</tr></thead>
-        <tbody>{body.map((row, rowIndex) => <tr key={rowIndex}>{row.map((cell, index) => <td key={index}>{inline(cell)}</td>)}</tr>)}</tbody></table></div>);
+      const right = head.map((_, column) => align[column] === "right" || (align[column] !== "left" && body.length > 0 && body.every((row) => !row[column] || numeric(row[column]))));
+      blocks.push(<div className="ask-eline-table" key={blocks.length}><table><thead><tr>{head.map((cell, index) => <th className={right[index] ? "right" : undefined} key={index}>{inline(cell)}</th>)}</tr></thead>
+        <tbody>{body.map((row, rowIndex) => <tr key={rowIndex}>{head.map((_, index) => <td className={right[index] ? "right num" : undefined} key={index}>{inline(row[index] ?? "")}</td>)}</tr>)}</tbody></table></div>);
       table = null;
+      align = [];
+    }
+    if (quote) {
+      blocks.push(<blockquote key={blocks.length}>{quote.map((line, index) => <p key={index}>{inline(line)}</p>)}</blockquote>);
+      quote = null;
     }
   };
-  for (const raw of text.split("\n")) {
-    const line = raw.trim();
+  const lines = text.split("\n");
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index].trim();
+    const fence = line.match(/^```\s*([\w-]*)/);
+    if (fence) {
+      flush();
+      const body: string[] = [];
+      let closed = false;
+      for (index += 1; index < lines.length; index += 1) {
+        if (lines[index].trim().startsWith("```")) { closed = true; break; }
+        body.push(lines[index]);
+      }
+      if (fence[1] === "chart") {
+        const chart = closed ? parseChart(body.join("\n")) : null;
+        blocks.push(chart ? <ChartBlock chart={chart} key={blocks.length} /> : closed ? null : <div className="ask-chart pending" key={blocks.length}><BarChart3 size={16} /> Drawing the chart…</div>);
+      } else blocks.push(<pre key={blocks.length}><code>{body.join("\n")}</code></pre>);
+      continue;
+    }
     if (/^\|.*\|$/.test(line)) {
-      if (list) { const rows: string[][] | null = table; table = null; flush(); table = rows; }
-      if (/^\|[\s:|-]+\|$/.test(line)) continue;
+      if (list || quote) { const rows: string[][] | null = table; table = null; flush(); table = rows; }
+      if (/^\|[\s:|-]+\|$/.test(line)) {
+        align = line.slice(1, -1).split("|").map((cell) => (/^\s*:?-+:\s*$/.test(cell) ? "right" : /^\s*:-+\s*$/.test(cell) ? "left" : undefined));
+        continue;
+      }
       (table ??= []).push(line.slice(1, -1).split("|").map((cell) => cell.trim()));
       continue;
     }
+    if (line.startsWith(">")) {
+      if (list || table) flush();
+      (quote ??= []).push(line.replace(/^>\s?/, ""));
+      continue;
+    }
     const bullet = line.match(/^[-*•]\s+(.*)$/);
-    const numbered = line.match(/^\d+[.)]\s+(.*)$/);
-    if ((bullet || numbered) && !/^-{3,}$/.test(line)) {
+    const numbered = line.match(/^(\d+)[.)]\s+(.*)$/);
+    if ((bullet || numbered) && !/^(-{3,}|\*{3,})$/.test(line)) {
       const ordered = Boolean(numbered);
-      if (table || (list && list.ordered !== ordered)) flush();
-      list ??= { ordered, items: [] };
-      list.items.push((bullet ?? numbered)![1]);
+      if (table || quote || (list && list.ordered !== ordered)) flush();
+      list ??= { ordered, start: numbered ? Number(numbered[1]) : 1, items: [] };
+      list.items.push(bullet ? bullet[1] : numbered![2]);
       continue;
     }
     flush();
     if (!line) continue;
     if (/^(-{3,}|\*{3,}|_{3,})$/.test(line)) blocks.push(<hr key={blocks.length} />);
-    else if (/^#{1,6}\s/.test(line)) blocks.push(<p className="ask-eline-heading" key={blocks.length}>{inline(line.replace(/^#+\s*/, ""))}</p>);
-    else if (line.startsWith(">")) blocks.push(<blockquote key={blocks.length}>{inline(line.replace(/^>\s?/, ""))}</blockquote>);
-    else blocks.push(<p key={blocks.length}>{inline(line)}</p>);
+    else if (/^#{1,6}\s/.test(line)) {
+      const level = line.match(/^#+/)![0].length;
+      blocks.push(<p className={`ask-eline-heading h${Math.min(level, 3)}`} key={blocks.length}>{inline(line.replace(/^#+\s*/, ""))}</p>);
+    } else blocks.push(<p key={blocks.length}>{inline(line)}</p>);
   }
   flush();
   return <>{blocks}</>;
 }
 
-export function AskEline({ role }: { role: string }) {
+export function AskEline({ role, name }: { role: string; name: string }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   // Riwayat dibaca sekali saat mount; panel tertutup saat render server, jadi tidak ada beda hidrasi.
@@ -98,8 +201,9 @@ export function AskEline({ role }: { role: string }) {
   const list = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLTextAreaElement>(null);
   const manager = role === "owner" || role === "manager";
+  const firstName = name.trim().split(/\s+/)[0] || "there";
   const suggestions = manager
-    ? ["How did we do this week vs last week?", "Which products make the most profit?", "Buatkan laporan penjualan bulan lalu dalam PDF", "Export this month's orders to Excel"]
+    ? ["How did we do this week vs last week?", "Which products make the most profit?", "Make last month's sales report as a PDF", "Export this month's orders to Excel"]
     : ["How do I void an item?", "How do I close my shift?", "What does Awaiting payment mean?", "How do I report a printer problem?"];
 
   useEffect(() => {
@@ -183,37 +287,57 @@ export function AskEline({ role }: { role: string }) {
       {open ? (
         <aside aria-label="Ask Eline" className="ask-eline">
           <header className="ask-eline-head">
-            <span className="ask-eline-mark"><Sparkles size={16} /></span>
-            <div><strong>Ask Eline</strong><small>{manager ? "Reads your outlet's data and makes reports" : "Help with Mangalli"}</small></div>
-            {messages.length ? <button aria-label="New conversation" className="icon-button" onClick={() => { setMessages([]); setError(null); }} title="New conversation" type="button"><RotateCcw size={16} /></button> : null}
-            <button aria-label="Close" className="icon-button" onClick={() => setOpen(false)} type="button"><X size={18} /></button>
+            <span className="ask-eline-mark"><Sparkles size={15} /></span>
+            <strong>Eline</strong>
+            <span className="ask-eline-head-actions">
+              {messages.length ? <button aria-label="New conversation" className="ask-eline-tool" disabled={busy} onClick={() => { setMessages([]); setError(null); input.current?.focus(); }} title="New conversation" type="button"><SquarePen size={16} /></button> : null}
+              <button aria-label="Close" className="ask-eline-tool" onClick={() => setOpen(false)} title="Close" type="button"><X size={17} /></button>
+            </span>
           </header>
           <div className="ask-eline-list" ref={list}>
             {messages.length ? messages.map((message, index) => (
               <div className={`ask-eline-msg ${message.role}`} key={index}>
-                {message.role === "assistant" ? (message.content ? <Rich text={message.content} /> : status ? <span className="ask-eline-status"><Sparkles size={14} />{status}…</span> : <span className="ask-eline-typing"><i /><i /><i /></span>) : <p>{message.content}</p>}
+                {message.role === "assistant" ? (message.content ? (
+                  <>
+                    <Rich text={message.content} />
+                    {!busy || index < messages.length - 1 ? <CopyAnswer text={message.content} /> : null}
+                  </>
+                ) : status ? <span className="ask-eline-status"><Sparkles size={14} />{status}…</span> : <span className="ask-eline-typing" aria-label="Eline is typing"><i /><i /><i /></span>) : <p>{message.content}</p>}
               </div>
             )) : (
               <div className="ask-eline-empty">
                 <span className="ask-eline-mark big"><Sparkles size={22} /></span>
-                <strong>Hi, I&apos;m Eline.</strong>
-                <p>{manager ? "Ask about sales, stock or shifts, or request an Excel or PDF report." : "Ask how to do anything in Mangalli."}</p>
+                <strong>Hi {firstName}, how can I help?</strong>
+                <p>{manager ? "Sales, stock, shifts, or a report in Excel or PDF." : "Ask how to do anything in Mangalli."}</p>
                 <div className="ask-eline-suggest">{suggestions.map((suggestion) => (
-                  <button key={suggestion} onClick={() => send(suggestion)} type="button">{suggestion}</button>
+                  <button key={suggestion} onClick={() => send(suggestion)} type="button"><span>{suggestion}</span><ArrowRight size={14} /></button>
                 ))}</div>
               </div>
             )}
-            {error ? <p className="form-message error">{error}</p> : null}
+            {error ? <p className="ask-eline-error" role="alert">{error}</p> : null}
           </div>
           <form className="ask-eline-compose" onSubmit={(event) => { event.preventDefault(); void send(draft); }}>
-            <textarea
-              aria-label="Your question" maxLength={2000} onChange={(event) => setDraft(event.target.value)} placeholder="Ask anything about Mangalli…" ref={input} rows={1} value={draft}
-              onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void send(draft); } }}
-            />
-            <button aria-label="Send" className="ask-eline-send" disabled={busy || !draft.trim()} type="submit"><ArrowUp size={18} /></button>
+            <div className="ask-eline-box">
+              <textarea
+                aria-label="Your question" maxLength={2000} onChange={(event) => setDraft(event.target.value)} placeholder="Ask Eline…" ref={input} rows={1} value={draft}
+                onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void send(draft); } }}
+              />
+              <button aria-label="Send" className="ask-eline-send" disabled={busy || !draft.trim()} type="submit"><ArrowUp size={17} /></button>
+            </div>
+            <small className="ask-eline-foot">Eline reads this outlet&apos;s data and can&apos;t change anything.</small>
           </form>
         </aside>
       ) : null}
     </>
+  );
+}
+
+// Salin jawaban (teks markdown apa adanya) untuk ditempel ke WhatsApp atau catatan.
+function CopyAnswer({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button className="ask-eline-copy" onClick={() => { void navigator.clipboard?.writeText(text.replace(/```chart[\s\S]*?```/g, "").trim()).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); }); }} type="button">
+      {copied ? <Check size={13} /> : <Copy size={13} />}{copied ? "Copied" : "Copy"}
+    </button>
   );
 }

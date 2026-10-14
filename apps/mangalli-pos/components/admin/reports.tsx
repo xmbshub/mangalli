@@ -212,11 +212,11 @@ function SalesTab({ data }: { data: ReportPack }) {
       <Panel className="span-4" title="Payment methods">{shareList(data.methods, (value) => paymentMethodLabel[value] ?? value)}</Panel>
       <BusyTimes data={data} className="span-12" />
       <Panel className="span-12" title="By day" description="Sales exclude tax" info="Collected is what customers paid, tax included.">
-        <div className="table-wrap"><table>
+        <div className="table-wrap cards"><table>
           <thead><tr><th>Date</th><th className="right">Orders</th><th className="right">Sales</th><th className="right">Tax</th><th className="right hide-sm">Cash</th><th className="right hide-sm">Digital</th><th className="right">Collected</th></tr></thead>
           <tbody>{[...data.daily].reverse().filter((day) => day.orders).map((day) => (
-            <tr key={day.day}><td>{formatDate(day.day, true)}</td><td className="right num">{day.orders}</td><td className="right num">{formatIdr(day.net)}</td><td className="right num muted">{formatIdr(day.tax)}</td>
-              <td className="right num hide-sm">{formatIdr(day.cash)}</td><td className="right num hide-sm">{formatIdr(day.digital)}</td><td className="right num"><strong>{formatIdr(day.collected)}</strong></td></tr>
+            <tr key={day.day}><td><strong>{formatDate(day.day, true)}</strong></td><td className="right num" data-label="Orders">{day.orders}</td><td className="right num" data-label="Sales">{formatIdr(day.net)}</td><td className="right num muted" data-label="Tax">{formatIdr(day.tax)}</td>
+              <td className="right num hide-sm">{formatIdr(day.cash)}</td><td className="right num hide-sm">{formatIdr(day.digital)}</td><td className="right num end"><strong>{formatIdr(day.collected)}</strong></td></tr>
           ))}</tbody>
         </table></div>
       </Panel>
@@ -229,14 +229,14 @@ function ProductsTab({ data }: { data: ReportPack }) {
   return (
     <div className="bento">
       <Panel className="span-8" title="Products" description="Sales at menu price before order discounts">
-        <div className="table-wrap"><table>
+        <div className="table-wrap cards"><table>
           <thead><tr><th>Product</th><th className="right">Sold</th><th className="right">Sales</th><th className="right hide-sm">Cost</th><th className="right">Profit <Hint>Sales minus the cost of the items sold. Set a Cost on the product to see it.</Hint></th><th className="right hide-sm">Share</th></tr></thead>
           <tbody>{data.products.map((item) => (
             <tr key={`${item.id}-${item.name}`}>
               <td><strong>{item.name}</strong><span className="cell-sub">{item.category}</span></td>
-              <td className="right num">{item.qty}</td><td className="right num">{formatIdr(item.revenue)}</td>
+              <td className="right num" data-label="Sold">{item.qty}</td><td className="right num end">{formatIdr(item.revenue)}</td>
               <td className="right num hide-sm muted">{item.cost === null ? "—" : formatIdr(item.cost)}</td>
-              <td className="right num">{item.profit === null ? <Link className="link muted" href={item.id ? `/admin/products?edit=${item.id}` : "/admin/products"}>Add cost</Link> : <>{formatIdr(item.profit)}<span className="cell-sub">{percent(item.profit, item.revenue)} margin</span></>}</td>
+              <td className="right num" data-label="Profit">{item.profit === null ? <Link className="link muted" href={item.id ? `/admin/products?edit=${item.id}` : "/admin/products"}>Add cost</Link> : <>{formatIdr(item.profit)}<span className="cell-sub">{percent(item.profit, item.revenue)} margin</span></>}</td>
               <td className="right num hide-sm muted">{percent(item.revenue, total)}</td>
             </tr>
           ))}</tbody>

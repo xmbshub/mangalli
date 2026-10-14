@@ -376,6 +376,8 @@ async function createOrder(
       input.orderMode === "takeaway" ? input.pickupName || input.customerName : null, input.notes ?? null],
   );
   await insertItems(client, order.rows[0].id, validated.items);
+  // Kasir yang mengambil pesanan (detail pesanan, ekspor, audit).
+  await client.query("UPDATE orders SET cashier_id=$2 WHERE id=$1", [order.rows[0].id, staff.user_id]);
   await recordCustomAmounts(client, device, staff, order.rows[0].id, validated.items, "custom_amount.paid");
   const payment = await client.query<{ id: string }>(
     `INSERT INTO payments(order_id, amount, status, payment_method, transaction_id, paid_at, notes)
@@ -434,6 +436,7 @@ async function saveBill(
     orderId = created.rows[0].id;
   }
   await insertItems(client, orderId, validated.items);
+  await client.query("UPDATE orders SET cashier_id=coalesce(cashier_id,$2) WHERE id=$1", [orderId, staff.user_id]);
   if (update) {
     const pendingKitchen = validated.items.some((item) => item.sendToKitchen);
     if (pendingKitchen) await client.query("UPDATE orders SET restaurant_status='accepted', status='pending' WHERE id=$1 AND restaurant_status='ready'", [orderId]);

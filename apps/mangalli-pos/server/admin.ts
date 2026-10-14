@@ -2,6 +2,7 @@ import "server-only";
 
 import { query, transaction } from "./db";
 import { expireUnpaidOrders } from "./menu-orders";
+import { shiftOverdue } from "./opening-hours";
 import type { Operator } from "./auth";
 import { availableStockSql } from "./stock";
 
@@ -91,8 +92,9 @@ export async function dashboardData(operator: Operator) {
               count(*) FILTER (WHERE restaurant_status IN ('new','accepted','preparing'))::text AS kitchen,
               count(*) FILTER (WHERE restaurant_status='ready')::text AS ready
        FROM orders WHERE outlet_key=$1 AND restaurant_status IN ('pending_payment','new','accepted','preparing','ready')`, [operator.outletKey]),
-    query<{ opened_at: Date; opening_cash: string; order_count: number; cash_payment_total: string; digital_payment_total: string }>(
-      `SELECT opened_at,opening_cash::text,order_count,cash_payment_total::text,digital_payment_total::text
+    query<{ opened_at: Date; opened_by: string | null; opening_cash: string; order_count: number; cash_payment_total: string; digital_payment_total: string; opening_hours: OpeningHour[] | null }>(
+      `SELECT opened_at,(SELECT name FROM users WHERE id=pos_shifts.opened_by) AS opened_by,opening_cash::text,order_count,cash_payment_total::text,digital_payment_total::text,
+              (SELECT opening_hours FROM outlets WHERE outlet_key=$1) AS opening_hours
        FROM pos_shifts WHERE outlet_key=$1 AND status='open' ORDER BY opened_at DESC LIMIT 1`, [operator.outletKey]),
     query<{ id: string; order_code: string | null; customer_name: string | null; restaurant_status: string; payment_status: string | null; amount: string | null; created_at: Date }>(
       `SELECT o.id::text,o.order_code,o.customer_name,o.restaurant_status,p.status AS payment_status,p.amount::text,o.created_at
@@ -107,7 +109,9 @@ export async function dashboardData(operator: Operator) {
     byHour, methods: methods.rows.map((item) => ({ method: item.method, total: Number(item.total), count: Number(item.count) })),
     top: top.rows.map((item) => ({ name: item.name, qty: Number(item.qty), revenue: Number(item.revenue) })),
     unpaid: Number(queue.rows[0]?.unpaid ?? 0), kitchen: Number(queue.rows[0]?.kitchen ?? 0), ready: Number(queue.rows[0]?.ready ?? 0),
-    openShift: openShift.rows[0] ?? null, recent: recent.rows,
+    // Shift yang lupa ditutup: masih terbuka 2 jam lewat jam tutup (menurut sinkron terakhir tablet).
+    openShift: openShift.rows[0] ? { ...openShift.rows[0], closedMinutesAgo: shiftOverdue(openShift.rows[0].opening_hours ?? [], openShift.rows[0].opened_at, new Date(), operator.timezone) } : null,
+    recent: recent.rows,
   };
 }
 
@@ -124,11 +128,13 @@ export type OrderRow = {
   id: string; order_code: string | null; customer_name: string | null; order_mode: string; table_label: string | null;
   restaurant_status: string; payment_status: string | null; payment_method: string | null; amount: string | null;
   created_at: Date; payment_due_at: Date | null; pickup_name: string | null; from_tablet: boolean;
+  // Kasir yang mengambil pesanan, atau yang menerima bayar pesanan menu digital (migrasi 019).
+  cashier_name: string | null;
 };
 
 const orderColumns = `o.id::text,o.order_code,o.customer_name,o.order_mode,o.table_label,o.restaurant_status,
   p.status AS payment_status,p.payment_method,p.amount::text,o.created_at,o.payment_due_at,o.pickup_name,
-  (o.device_id IS NOT NULL) AS from_tablet`;
+  (o.device_id IS NOT NULL) AS from_tablet,(SELECT name FROM users WHERE id=o.cashier_id) AS cashier_name`;
 
 export const orderSorts = { newest: "o.created_at DESC", oldest: "o.created_at ASC", highest: "p.amount DESC NULLS LAST, o.created_at DESC" } as const;
 export type OrderSort = keyof typeof orderSorts;
@@ -140,7 +146,8 @@ export async function ordersData(operator: Operator, filters: { tab: OrderTab; s
   await transaction((client) => expireUnpaidOrders(client, operator.outletKey));
   const statuses = orderTabs[filters.tab];
   const where = `o.outlet_key=$1 AND ($2::text[] IS NULL OR o.restaurant_status = ANY($2::text[]))
-         AND ($3 = '' OR o.order_code ILIKE '%'||$3||'%' OR o.customer_name ILIKE '%'||$3||'%' OR o.table_label ILIKE '%'||$3||'%')
+         AND ($3 = '' OR o.order_code ILIKE '%'||$3||'%' OR o.customer_name ILIKE '%'||$3||'%' OR o.table_label ILIKE '%'||$3||'%'
+              OR EXISTS (SELECT 1 FROM users u WHERE u.id=o.cashier_id AND u.name ILIKE '%'||$3||'%'))
          AND ($4 = '' OR (o.created_at AT TIME ZONE $6)::date >= $4::date) AND ($5 = '' OR (o.created_at AT TIME ZONE $6)::date <= $5::date)`;
   const args = [operator.outletKey, statuses, filters.search, dateParam(filters.from), dateParam(filters.to), operator.timezone];
   const [rows, counts, total] = await Promise.all([
@@ -167,8 +174,11 @@ async function itemsFor(orderIds: string[]) {
 
 export async function orderDetail(operator: Operator, id: string) {
   if (!/^\d+$/.test(id)) return null;
-  const order = (await query<OrderRow & { notes: string | null; void_reason: string | null; paid_at: Date | null; discount_amount: string; discount_label: string | null }>(
-    `SELECT ${orderColumns},o.notes,o.void_reason,p.paid_at,o.discount_amount::text,o.discount_label FROM orders o LEFT JOIN payments p ON p.order_id=o.id
+  const order = (await query<OrderRow & { notes: string | null; void_reason: string | null; paid_at: Date | null; discount_amount: string; discount_label: string | null;
+    voided_at: Date | null; voided_by_name: string | null; refunded_at: Date | null; refunded_by_name: string | null; refund_reason: string | null }>(
+    `SELECT ${orderColumns},o.notes,o.void_reason,p.paid_at,o.discount_amount::text,o.discount_label,o.voided_at,
+       (SELECT name FROM users WHERE id=o.voided_by) AS voided_by_name,p.refunded_at,(SELECT name FROM users WHERE id=p.refunded_by) AS refunded_by_name,p.refund_reason
+     FROM orders o LEFT JOIN payments p ON p.order_id=o.id
      WHERE o.outlet_key=$1 AND o.id=$2`, [operator.outletKey, id])).rows[0];
   if (!order) return null;
   return { order, items: await itemsFor([order.id]) };

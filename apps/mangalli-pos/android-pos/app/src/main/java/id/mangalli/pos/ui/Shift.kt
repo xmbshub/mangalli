@@ -17,7 +17,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Print
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.Text
+import androidx.compose.ui.draw.clip
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -51,7 +56,7 @@ fun ShiftScreen(state: PosUiState, actions: PosActions) {
     closedId?.let { id ->
         val closed = state.shifts.firstOrNull { it.localUuid == id }
         if (closed != null) {
-            val summary = shiftSummaryOf(closed, state.history.filter { it.shiftLocalUuid == id })
+            val summary = state.summaryOf(closed)
             PosDialog(onDismiss = { closedId = null }, width = 520.dp) {
                 DialogHeader("Shift closed", "${closed.businessDate} · ${clockLabel(closed.openedAtMillis)} – ${clockLabel(closed.closedAtMillis)}", onClose = { closedId = null })
                 DialogBody(Pos.Space3) {
@@ -92,6 +97,42 @@ private fun OpenShiftView(state: PosUiState, actions: PosActions, modifier: Modi
             cancelLabel = "Recount",
         )
     }
+    if (LocalCompact.current) {
+        // Ponsel: satu kolom yang bisa digulir, papan angka setinggi jempol.
+        Column(modifier = modifier.fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(Pos.Space3)) {
+            PosCard(padding = PaddingValues(Pos.Space4)) {
+                CardHeader("Open a shift", "Count the cash in the drawer first.")
+                Spacer(Modifier.height(Pos.Space3))
+                Text(formatPrice(amount), style = PosType.Amount, color = Pos.Ink)
+                Spacer(Modifier.height(Pos.Space2))
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(Pos.Space2), verticalArrangement = Arrangement.spacedBy(Pos.Space2)) {
+                    listOf(0.0, 100_000.0, 200_000.0, 500_000.0).forEach { preset ->
+                        ChoiceChip(if (preset == 0.0) "No cash" else formatPrice(preset), selected = amount == preset && (digits.isNotBlank() || preset == 0.0), onClick = { digits = if (preset == 0.0) "" else Math.round(preset).toString() })
+                    }
+                }
+                Spacer(Modifier.height(Pos.Space3))
+                Numpad(onKey = { digits = appendDigits(digits, it) }, onBackspace = { digits = digits.dropLast(1) }, modifier = Modifier.fillMaxWidth().height(264.dp))
+                Spacer(Modifier.height(Pos.Space3))
+                PosButton("Open shift", onClick = { confirmOpen = true }, size = ButtonSize.Large, loading = state.isBusy, haptic = true, modifier = Modifier.fillMaxWidth())
+            }
+            if (last != null) {
+                val summary = state.summaryOf(last)
+                PosCard(padding = PaddingValues(Pos.Space4)) {
+                    CardHeader("Last shift", "${last.businessDate} · closed by ${last.closedByName ?: last.openedByName ?: "Cashier"}") {
+                        PosIconButton(Icons.Outlined.Print, "Print report", { actions.printShiftReport(last.localUuid) }, outlined = false)
+                    }
+                    Spacer(Modifier.height(Pos.Space3))
+                    Column(verticalArrangement = Arrangement.spacedBy(Pos.Space2)) {
+                        KeyValue("Hours", "${clockLabel(last.openedAtMillis)} – ${clockLabel(last.closedAtMillis)}")
+                        KeyValue("Paid orders", summary.orderCount.toString())
+                        KeyValue("Sales", formatPrice(summary.cashSales + summary.nonCashSales))
+                        last.actualCash?.let { KeyValue("Cash difference", signedPrice(it - summary.expectedCash), valueColor = if (it == summary.expectedCash) Pos.Success else Pos.Danger) }
+                    }
+                }
+            }
+        }
+        return
+    }
     Row(modifier = modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Pos.Space4)) {
         PosCard(modifier = Modifier.weight(1f).fillMaxHeight()) {
             CardHeader("Open a shift", "Count the cash in the drawer before the first sale.")
@@ -118,7 +159,7 @@ private fun OpenShiftView(state: PosUiState, actions: PosActions, modifier: Modi
             if (last == null) {
                 EmptyState("No shifts yet", modifier = Modifier.fillMaxSize())
             } else {
-                val summary = shiftSummaryOf(last, state.history.filter { it.shiftLocalUuid == last.localUuid })
+                val summary = state.summaryOf(last)
                 Column(verticalArrangement = Arrangement.spacedBy(Pos.Space3)) {
                     KeyValue("Hours", "${clockLabel(last.openedAtMillis)} – ${clockLabel(last.closedAtMillis)}")
                     KeyValue("Paid orders", summary.orderCount.toString())
@@ -143,7 +184,72 @@ private fun OpenedShiftView(state: PosUiState, actions: PosActions, modifier: Mo
     val difference = counted - summary.expectedCash
     val movements = id.mangalli.pos.offline.OfflineOrders.cashMovementsFromJson(shift.cashMovementsJson)
 
-    Row(modifier = modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Pos.Space4)) {
+    if (LocalCompact.current) {
+        // Ponsel: angka dua kolom, tombol kas dan tutup shift, lalu transaksi shift.
+        // Menghitung laci dibuka sebagai sheet dengan papan angka.
+        var counting by remember { mutableStateOf(false) }
+        LazyColumn(modifier = modifier.fillMaxWidth()) {
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(Pos.Space3)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(Pos.Space3), modifier = Modifier.height(108.dp)) {
+                        StatCard("Expected cash", formatPrice(summary.expectedCash), if (movements.isEmpty()) "Start + cash sales" else "Includes cash in/out", Modifier.weight(1f).fillMaxHeight(), tone = Tone.Primary)
+                        StatCard("Paid orders", summary.orderCount.toString(), "${summary.cancelledCount} cancelled", Modifier.weight(1f).fillMaxHeight())
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(Pos.Space3), modifier = Modifier.height(108.dp)) {
+                        StatCard("Cash sales", formatPrice(summary.cashSales), "Start ${formatPrice(shift.openingCash)}", Modifier.weight(1f).fillMaxHeight())
+                        StatCard("Non-cash", formatPrice(summary.nonCashSales), "QRIS, card, transfer", Modifier.weight(1f).fillMaxHeight())
+                    }
+                    if (summary.openBills > 0) InfoBanner("${summary.openBills} open bill(s), ${formatPrice(summary.openBillTotal)}, move to the next shift.", tone = Tone.Warning)
+                    Row(horizontalArrangement = Arrangement.spacedBy(Pos.Space3)) {
+                        PosButton("Cash in/out", onClick = { cashDialog = true }, variant = ButtonVariant.Secondary, size = ButtonSize.Large, modifier = Modifier.weight(1f))
+                        PosButton("Close shift", onClick = { counting = true }, size = ButtonSize.Large, modifier = Modifier.weight(1f))
+                    }
+                    val sales = state.openShiftOrders.size
+                    val summaryLabel = listOfNotNull(
+                        "$sales order${if (sales == 1) "" else "s"}",
+                        movements.size.takeIf { it > 0 }?.let { "$it cash in/out" },
+                    ).joinToString(" · ")
+                    SectionLabel("This shift · $summaryLabel", modifier = Modifier.padding(top = Pos.Space2, bottom = Pos.Space3))
+                }
+            }
+            if (state.openShiftOrders.isEmpty() && movements.isEmpty()) item { EmptyState("No transactions yet", modifier = Modifier.fillMaxWidth()) }
+            // Satu kartu bergaris pemisah, sama dengan daftar History.
+            val lines = movements.reversed().map { movement ->
+                ShiftLineData("m:${movement.id}", movement.reason, "${clockLabel(movement.atMillis)} · ${movement.byName ?: "Cashier"}" + (movement.approvedByName?.let { " · approved by $it" } ?: ""), signedPrice(movement.signed), if (movement.kind == "out") Pos.Danger else Pos.Success)
+            } + state.openShiftOrders.map { order ->
+                ShiftLineData("o:${order.localUuid}", "${order.code()} · ${order.contextLabel()}", "${clockLabel(order.createdAtMillis)} · ${if (order.paymentStatus == "completed") paymentMethodLabel(order.paymentMethod) else statusLabel(order.status)}", formatPrice(order.total), if (order.status == "cancelled") Pos.Subtle else Pos.Ink)
+            }
+            if (lines.isNotEmpty()) item {
+                PosCard(padding = PaddingValues(0.dp)) {
+                    lines.forEachIndexed { index, line ->
+                        ShiftLine(line)
+                        if (index < lines.lastIndex) HorizontalLine(modifier = Modifier.padding(start = Pos.Space4))
+                    }
+                }
+            }
+        }
+        if (counting) {
+            PosDialog(onDismiss = { counting = false }) {
+                DialogHeader("Count the drawer", "Expected ${formatPrice(summary.expectedCash)}", onClose = { counting = false })
+                Column(modifier = Modifier.padding(horizontal = Pos.Space5).padding(top = Pos.Space4, bottom = Pos.Space2), verticalArrangement = Arrangement.spacedBy(Pos.Space3)) {
+                    Row(verticalAlignment = Alignment.Bottom) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            SectionLabel("Counted cash")
+                            Text(formatPrice(counted), style = PosType.Amount, color = if (digits.isBlank()) Pos.Subtle else Pos.Ink)
+                        }
+                        if (digits.isNotBlank()) Column(horizontalAlignment = Alignment.End) {
+                            SectionLabel("Difference")
+                            Text(signedPrice(difference), style = PosType.AmountSmall, color = if (difference == 0.0) Pos.Success else Pos.Danger)
+                        }
+                    }
+                    Numpad(onKey = { digits = appendDigits(digits, it) }, onBackspace = { digits = digits.dropLast(1) }, modifier = Modifier.fillMaxWidth().height(264.dp))
+                }
+                DialogFooter {
+                    PosButton("Continue", onClick = { counting = false; confirm = true }, enabled = digits.isNotBlank(), size = ButtonSize.Large, modifier = Modifier.weight(1f))
+                }
+            }
+        }
+    } else Row(modifier = modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Pos.Space4)) {
         Column(modifier = Modifier.weight(1.2f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(Pos.Space4)) {
             Row(modifier = Modifier.height(128.dp), horizontalArrangement = Arrangement.spacedBy(Pos.Space4)) {
                 StatCard("Starting cash", formatPrice(shift.openingCash), "Counted at ${clockLabel(shift.openedAtMillis)}", Modifier.weight(1f).fillMaxHeight())
@@ -156,7 +262,7 @@ private fun OpenedShiftView(state: PosUiState, actions: PosActions, modifier: Mo
                 StatCard("Expected cash", formatPrice(summary.expectedCash), if (movements.isEmpty()) "Starting + cash sales" else "Includes cash in/out", Modifier.weight(1f).fillMaxHeight(), tone = Tone.Primary)
             }
             // Transaksi shift ini: kasir memeriksa sebelum menghitung laci.
-            val shiftOrders = state.history.filter { it.shiftLocalUuid == shift.localUuid }
+            val shiftOrders = state.openShiftOrders
             PosCard(modifier = Modifier.weight(1f).fillMaxWidth(), padding = PaddingValues(0.dp)) {
                 Column(modifier = Modifier.padding(Pos.Space5)) {
                     CardHeader(
@@ -308,9 +414,21 @@ private fun CashDialog(state: PosUiState, expected: Double, onSave: (String, Dou
     }
 }
 
+private data class ShiftLineData(val key: String, val title: String, val subtitle: String, val amount: String, val amountColor: androidx.compose.ui.graphics.Color)
+
+@Composable
+private fun ShiftLine(line: ShiftLineData) {
+    ListItem(
+        headlineContent = { Text(line.title, style = PosType.Label, color = Pos.Ink, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        supportingContent = { Text(line.subtitle, style = PosType.Caption, color = Pos.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        trailingContent = { Text(line.amount, style = PosType.Label, color = line.amountColor) },
+        colors = ListItemDefaults.colors(containerColor = Pos.Surface),
+    )
+}
+
 @Composable
 private fun StatCard(label: String, value: String, hint: String, modifier: Modifier, tone: Tone? = null) {
-    PosCard(modifier = modifier, padding = PaddingValues(Pos.Space5)) {
+    PosCard(modifier = modifier, padding = PaddingValues(if (LocalCompact.current) Pos.Space4 else Pos.Space5)) {
         Text(label, style = PosType.BodySmall, color = Pos.Muted)
         Spacer(Modifier.height(Pos.Space2))
         Text(value, style = PosType.AmountSmall, color = tone?.foreground() ?: Pos.Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)

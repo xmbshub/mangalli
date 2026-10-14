@@ -151,6 +151,14 @@ export async function deleteCategoryAction(_state: FormState, data: FormData): P
   });
 }
 
+const newOptionGroups = z.array(z.object({
+  name: z.string().trim().min(1, "Give every option group a name, for example Size.").max(80),
+  isRequired: z.boolean(),
+  maxSelect: z.number().int().min(1).max(20),
+  options: z.array(z.object({ name: z.string().trim().min(1).max(80), priceDelta: z.number().min(0, "Extra prices can't be negative.").max(10_000_000) }))
+    .min(1, "Every option group needs at least one option.").max(50),
+})).max(20);
+
 export async function saveProductAction(_state: FormState, data: FormData): Promise<FormState> {
   return menuRun(["/admin/products"], async () => {
     const user = await operator(["owner", "manager"]);
@@ -175,6 +183,8 @@ export async function saveProductAction(_state: FormState, data: FormData): Prom
     const stockText = text(data, "stock");
     const stock = Number(stockText);
     if (trackStock && (!stockText || !Number.isInteger(stock) || stock < 0 || stock > 1_000_000)) fail("Enter the units in stock now, for example 20.");
+    // Varian dari form Add product (OptionBuilder); produk lama memakai aksi grup/opsi per baris.
+    const options = editing ? [] : newOptionGroups.parse(text(data, "options") ? JSON.parse(text(data, "options")) : []);
     await transaction(async (client) => {
       const before = editing
         ? (await client.query<{ name: string; price: string; cost_price: string | null }>("SELECT name, price::text, cost_price::text FROM products WHERE id=$1 AND outlet_key=$2", [id, user.outletKey])).rows[0]
@@ -212,14 +222,23 @@ export async function saveProductAction(_state: FormState, data: FormData): Prom
             summary: now === null ? `${name}: stock no longer tracked.` : `${name}: stock ${was === null ? "set" : `${Math.max(0, Number(was))} →`} ${now}${was === null ? " (now tracked)" : ""}.` });
         }
       }
+      for (const [groupIndex, group] of options.entries()) {
+        const created = await client.query<{ id: string }>(
+          "INSERT INTO product_modifier_groups(product_id,name,is_required,min_select,max_select,sort_order) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id::text",
+          [id, group.name, group.isRequired, group.isRequired ? 1 : 0, Math.max(group.maxSelect, group.isRequired ? 1 : 0), groupIndex]);
+        for (const [optionIndex, option] of group.options.entries()) {
+          await client.query("INSERT INTO product_modifier_options(group_id,name,price_delta,is_available,sort_order) VALUES ($1,$2,$3,true,$4)",
+            [created.rows[0].id, option.name, option.priceDelta, optionIndex]);
+        }
+      }
       const current = await client.query<{ url: string }>("SELECT url FROM product_photos WHERE product_id=$1 AND is_primary=true", [id]);
       if ((current.rows[0]?.url ?? "") !== imageUrl) {
         await client.query("DELETE FROM product_photos WHERE product_id=$1 AND is_primary=true", [id]);
         if (imageUrl) await client.query("INSERT INTO product_photos(product_id,url,is_primary) VALUES ($1,$2,true)", [id, imageUrl]);
       }
     });
-    // Produk baru langsung dibuka dalam mode edit supaya modifier bisa ditambahkan.
-    return editing ? `${name} saved.` : `${name} added. Open it to add options like size or toppings.`;
+    if (editing) return `${name} saved.`;
+    return options.length ? `${name} added with ${options.length} option group${options.length > 1 ? "s" : ""}.` : `${name} added.`;
   }, false);
 }
 

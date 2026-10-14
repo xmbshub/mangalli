@@ -53,15 +53,15 @@ export async function ExpensesSection({ operator, period, category, page, creati
         }>
           {data.rows.length ? (
             <>
-              <div className="table-wrap"><table>
+              <div className="table-wrap cards"><table>
                 <thead><tr><th>Date</th><th>Category</th><th className="hide-sm">Note</th><th className="right">Amount</th><th /></tr></thead>
                 <tbody>{data.rows.map((row) => (
                   <tr key={row.id}>
-                    <td className="nowrap">{formatDate(row.spent_on)}</td>
-                    <td><Link href={`${base}&edit=${row.id}`} scroll={false}><strong>{expenseCategories[row.category]}</strong></Link>{row.created_by ? <span className="cell-sub">by {row.created_by}</span> : null}</td>
+                    <td className="nowrap muted">{formatDate(row.spent_on)}</td>
+                    <td className="first"><Link href={`${base}&edit=${row.id}`} scroll={false}><strong>{expenseCategories[row.category]}</strong></Link>{row.created_by ? <span className="cell-sub">by {row.created_by}</span> : null}</td>
                     <td className="hide-sm muted">{row.note ?? "—"}</td>
-                    <td className="right num">{formatIdr(Number(row.amount))}</td>
-                    <td className="right"><Link className="button small ghost" href={`${base}&edit=${row.id}`} scroll={false}>Edit</Link></td>
+                    <td className="right num end">{formatIdr(Number(row.amount))}</td>
+                    <td className="right hide-sm"><Link className="button small ghost" href={`${base}&edit=${row.id}`} scroll={false}>Edit</Link></td>
                   </tr>
                 ))}</tbody>
               </table></div>
