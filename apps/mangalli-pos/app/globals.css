@@ -1000,8 +1000,10 @@ body:has(.step-up-backdrop) :is(.sidebar, .mobile-header) { z-index: 61; }
   .tabbar-item[aria-current="page"] { color: var(--ink); font-weight: var(--fw-medium); }
   .tabbar-icon { position: relative; display: grid; place-items: center; width: 52px; height: 28px; border-radius: 999px; transition: background .15s, color .15s; }
   .tabbar-item[aria-current="page"] .tabbar-icon { background: var(--orange-100); color: var(--orange-600); }
-  .tabbar-badge { position: absolute; top: -4px; right: 6px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px; background: var(--orange-500); color: #fff; font-size: 10px; line-height: 16px; text-align: center; font-weight: var(--fw-medium); box-shadow: 0 0 0 2px #fff; }
-  .tabbar-badge.dot { min-width: 8px; width: 8px; height: 8px; padding: 0; top: 0; right: 12px; }
+  /* Badge ikon, aturan yang sama dengan APK (15 Okt 2026): pusat badge di diagonal sudut
+     ikon 20 px (angka 11 px, titik 7 px dari pusat ikon), cincin 2 px memisahkannya dari garis ikon. */
+  .tabbar-badge { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%) translate(11px, -11px); min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px; background: var(--orange-500); color: #fff; font-size: 10px; line-height: 16px; text-align: center; font-weight: var(--fw-medium); font-variant-numeric: tabular-nums; box-shadow: 0 0 0 2px var(--surface); }
+  .tabbar-badge.dot { min-width: 8px; width: 8px; height: 8px; padding: 0; transform: translate(-50%, -50%) translate(7px, -7px); }
   .sheet-backdrop { position: fixed; inset: 0; z-index: 85; background: rgb(24 24 27 / .32); animation: whats-new-fade .18s ease-out; }
   .sheet { position: absolute; left: 0; right: 0; bottom: 0; max-height: 86dvh; overflow-y: auto; padding: 8px 16px max(20px, env(safe-area-inset-bottom)); background: var(--surface); border-radius: 20px 20px 0 0; box-shadow: 0 -16px 40px rgb(24 24 27 / .16); animation: sheet-up .26s cubic-bezier(.22, 1, .36, 1); }
   .sheet-handle { display: block; width: 36px; height: 4px; margin: 0 auto 6px; border-radius: 999px; background: var(--line); }

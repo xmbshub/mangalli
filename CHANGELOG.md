@@ -3,6 +3,23 @@
 Version numbers follow the cashier tablet app. Each version also includes the
 dashboard changes released with it.
 
+## 0.9.2
+
+- Calmer, clearer type in the app: weights stay light (medium at most), and
+  hierarchy comes from size and colour. Large text is tracked slightly
+  tighter, small text slightly looser, and capital labels wider.
+- Phones: screen titles are 20 sp with a 13 sp line under them (the same title
+  size as the tablet), bottom bar labels are 12 sp, and large buttons (Charge,
+  Add, View order) share one 16 sp label, height and corner radius.
+- Badges on icons follow one rule on the phone header and bottom bar, the
+  tablet rail and the dashboard on phones: the status dot and the count sit
+  on the same diagonal from the icon's corner, with a white ring that keeps
+  them apart from the icon. The sync icon stays neutral so the count stands
+  out.
+- Messages say "phone" on phones everywhere, including sync errors, the
+  connect prompt and the clock warning.
+- Multi-line toasts keep their icon level with the first line.
+
 ## 0.9.1
 
 - Buttons spring back without wobbling when released; the cart badge and the

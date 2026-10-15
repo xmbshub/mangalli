@@ -26,13 +26,14 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -71,16 +72,17 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ModalBottomSheetProperties
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedIconButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SheetValue
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberModalBottomSheetState
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -95,14 +97,16 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
@@ -134,6 +138,13 @@ fun Modifier.pressable(interaction: MutableInteractionSource, enabled: Boolean =
 }
 
 enum class ButtonVariant { Primary, Secondary, Ghost, Danger, DangerSoft }
+
+// Teks tombol mengikuti tinggi tombol: besar (52 dp) 16, sedang 14, kecil 12; semuanya Medium.
+private fun buttonText(size: ButtonSize) = when (size) {
+    ButtonSize.Large -> PosType.Heading
+    ButtonSize.Medium -> PosType.Label
+    ButtonSize.Small -> PosType.Caption.copy(fontWeight = FontWeight.Medium)
+}
 enum class ButtonSize { Large, Medium, Small }
 
 @Composable
@@ -199,7 +210,7 @@ fun PosButton(
             } else if (icon != null) {
                 Icon(icon, contentDescription = null, tint = foreground, modifier = Modifier.size(if (size == ButtonSize.Small) 16.dp else 18.dp))
             }
-            Text(text, style = if (size == ButtonSize.Small) PosType.Caption.copy(fontWeight = PosType.Label.fontWeight) else PosType.Label, color = foreground, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(text, style = buttonText(size), color = foreground, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
@@ -226,7 +237,7 @@ private fun MaterialPosButton(text: String, onClick: () -> Unit, modifier: Modif
         if (loading) CircularProgressIndicator(modifier = Modifier.size(16.dp), color = tint, strokeWidth = 2.dp)
         else if (icon != null) Icon(icon, contentDescription = null, modifier = Modifier.size(if (size == ButtonSize.Small) 16.dp else 18.dp))
         if (loading || icon != null) Spacer(Modifier.width(Pos.Space2))
-        Text(text, style = if (size == ButtonSize.Small) PosType.Caption.copy(fontWeight = PosType.Label.fontWeight) else PosType.Label, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(text, style = buttonText(if (footer != null) ButtonSize.Large else size), maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
     when (variant) {
         ButtonVariant.Primary, ButtonVariant.Danger -> Button(
@@ -263,10 +274,13 @@ fun PosIconButton(
     compact: Boolean = false,
 ) {
     if (LocalCompact.current) {
+        if (badge > 0 && !outlined) {
+            Box(modifier) { BadgedIconButton(onClick, enabled, count = badge) { Icon(icon, contentDescription = contentDescription, tint = if (enabled) tint else Pos.Subtle, modifier = Modifier.size(20.dp)) } }
+            return
+        }
         val icon: @Composable () -> Unit = {
-            if (badge > 0) BadgedBox(badge = { Badge(containerColor = Pos.Primary, contentColor = Color.White) { Text(if (badge > 99) "99+" else badge.toString()) } }) {
-                Icon(icon, contentDescription = contentDescription, modifier = Modifier.size(20.dp))
-            } else Icon(icon, contentDescription = contentDescription, modifier = Modifier.size(if (compact) 18.dp else 20.dp))
+            if (badge > 0) IconWithBadge(count = badge, iconSize = 20.dp) { Icon(icon, contentDescription = contentDescription, modifier = Modifier.size(20.dp)) }
+            else Icon(icon, contentDescription = contentDescription, modifier = Modifier.size(if (compact) 18.dp else 20.dp))
         }
         val colors = IconButtonDefaults.iconButtonColors(contentColor = tint, disabledContentColor = Pos.Subtle)
         if (outlined) OutlinedIconButton(onClick, modifier, enabled = enabled, border = BorderStroke(1.dp, Pos.Line), colors = IconButtonDefaults.outlinedIconButtonColors(contentColor = tint, disabledContentColor = Pos.Subtle)) { icon() }
@@ -290,18 +304,65 @@ fun PosIconButton(
     }
 }
 
+// Badge ikon (audit 15 Okt 2026, permintaan owner: titik sinkron dan angka di header
+// ponsel belum simetris). Satu aturan untuk header dan bilah bawah ponsel serta rail
+// tablet: pusat badge berada pada diagonal yang sama dari pusat ikon (titik 3 dp di
+// dalam sudut ikon, angka 1 dp di luarnya), dan cincin 2 dp warna permukaan
+// memisahkan badge dari garis ikon. Letakkan di atas ikon dengan Alignment.Center.
 @Composable
-fun CountBadge(count: Int, modifier: Modifier = Modifier, color: Color = Pos.Primary) {
+fun IconBadge(count: Int = 0, dot: Color? = null, iconSize: Dp = 24.dp, countColor: Color = Pos.Primary, ring: Color = Pos.Surface) {
+    val corner = iconSize / 2
+    when {
+        count > 0 -> CountBadge(count, color = countColor, ring = ring, modifier = Modifier.offset(x = corner + 1.dp, y = -(corner + 1.dp)))
+        dot != null -> Box(
+            modifier = Modifier
+                .offset(x = corner - 3.dp, y = -(corner - 3.dp))
+                .size(12.dp)
+                .clip(CircleShape)
+                .background(ring)
+                .padding(2.dp)
+                .clip(CircleShape)
+                .background(dot),
+        )
+    }
+}
+
+/** Ikon dengan badge di sudut kanan atasnya, tanpa ikut terpotong bentuk tombol. */
+@Composable
+fun IconWithBadge(count: Int = 0, dot: Color? = null, iconSize: Dp = 24.dp, countColor: Color = Pos.Primary, ring: Color = Pos.Surface, icon: @Composable () -> Unit) {
+    Box(contentAlignment = Alignment.Center) {
+        icon()
+        IconBadge(count, dot, iconSize, countColor, ring)
+    }
+}
+
+/** Tombol ikon header ponsel dengan badge: riak 20 dp seperti IconButton, badge tidak dipotong. */
+@Composable
+fun BadgedIconButton(onClick: () -> Unit, enabled: Boolean = true, count: Int = 0, dot: Color? = null, countColor: Color = Pos.Primary, icon: @Composable () -> Unit) {
     Box(
-        modifier = modifier
-            .heightIn(min = 18.dp)
-            .widthIn(min = 18.dp)
-            .clip(CircleShape)
-            .background(color)
-            .padding(horizontal = 5.dp),
+        modifier = Modifier
+            .size(48.dp)
+            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = ripple(bounded = false, radius = 20.dp), enabled = enabled, role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Text(if (count > 99) "99+" else count.toString(), style = PosType.Micro, color = Color.White)
+        IconWithBadge(count, dot, countColor = countColor, icon = icon)
+    }
+}
+
+@Composable
+fun CountBadge(count: Int, modifier: Modifier = Modifier, color: Color = Pos.Primary, ring: Color = Pos.Surface) {
+    Box(modifier = modifier.clip(CircleShape).background(ring).padding(2.dp)) {
+        Box(
+            modifier = Modifier
+                .height(16.dp)
+                .widthIn(min = 16.dp)
+                .clip(CircleShape)
+                .background(color)
+                .padding(horizontal = 4.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(if (count > 99) "99+" else count.toString(), style = PosType.Badge, color = Color.White, maxLines = 1)
+        }
     }
 }
 
@@ -1013,7 +1074,9 @@ fun BoxScope.ToastHost(toast: ToastMessage?, onDismiss: () -> Unit) {
                 .background(if (message.tone == Tone.Danger) Pos.Danger else Pos.Ink)
                 .clickable(onClickLabel = "Dismiss") { visible = null; onDismiss() }
                 .padding(start = Pos.Space3, end = Pos.Space4, top = 10.dp, bottom = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
+            // Ikon sejajar baris pertama (ikon 18 = tinggi baris 18), sama dengan toast dashboard:
+            // satu baris tetap di tengah, pesan panjang tidak membuat ikon melayang di tengah.
+            verticalAlignment = Alignment.Top,
             horizontalArrangement = Arrangement.spacedBy(Pos.Space2),
         ) {
             Icon(
@@ -1038,7 +1101,7 @@ fun BoxScope.ToastHost(toast: ToastMessage?, onDismiss: () -> Unit) {
 
 @Composable
 fun SectionLabel(text: String, modifier: Modifier = Modifier) {
-    Text(text.uppercase(), style = PosType.Micro.copy(letterSpacing = PosType.Micro.letterSpacing), color = Pos.Muted, modifier = modifier)
+    Text(text.uppercase(), style = PosType.Eyebrow, color = Pos.Muted, modifier = modifier)
 }
 
 @Composable

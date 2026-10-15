@@ -7,7 +7,8 @@ import java.io.InputStreamReader
 import java.net.HttpURLConnection
 import java.net.URL
 
-class AndroidPosApi(private val baseUrl: String) {
+// device: "phone" atau "tablet", supaya pesan galat menyebut perangkat yang benar.
+class AndroidPosApi(private val baseUrl: String, private val device: String = "tablet") {
     companion object {
         // Selisih jam server dikurangi jam tablet dari respons terakhir.
         @Volatile var clockOffsetMillis: Long? = null
@@ -520,7 +521,7 @@ class AndroidPosApi(private val baseUrl: String) {
                 json.optJSONObject("errors")?.let { errors -> errors.keys().asSequence().firstNotNullOfOrNull { errors.optJSONArray(it)?.optString(0) } }
                     ?: json.optString("message")
             }.getOrNull()?.takeIf { it.isNotBlank() && it != "The given data was invalid." }
-            throw PosApiException(connection.responseCode, serverMessage)
+            throw PosApiException(connection.responseCode, serverMessage, device)
         }
 
         return JSONObject(response)
@@ -528,11 +529,11 @@ class AndroidPosApi(private val baseUrl: String) {
 }
 
 // Galat dari server dengan pesan yang bisa dibaca kasir, bukan JSON mentah.
-class PosApiException(val status: Int, serverMessage: String?) : IllegalStateException(
+class PosApiException(val status: Int, serverMessage: String?, device: String = "tablet") : IllegalStateException(
     when {
-        status == 401 || status == 403 -> "This tablet is no longer recognised by the outlet. An owner or manager should disconnect it in Settings and sign in again."
+        status == 401 || status == 403 -> "This $device is no longer recognised by the outlet. An owner or manager should disconnect it in Settings and sign in again."
         status == 429 -> "Too many attempts. Wait a minute and try again."
-        status >= 500 -> "The Mangalli server is having trouble. Everything stays saved on this tablet."
+        status >= 500 -> "The Mangalli server is having trouble. Everything stays saved on this $device."
         !serverMessage.isNullOrBlank() -> serverMessage
         else -> "Request failed ($status)."
     },

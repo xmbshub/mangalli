@@ -13,6 +13,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
@@ -109,19 +110,26 @@ fun Tone.background(): Color = when (this) {
     Tone.Info -> Pos.InfoSoft
 }
 
-// Skala huruf: angka besar 32, judul 20/16/14, isi 14/13, keterangan 12/11.
+// Skala huruf: angka besar 32/22, judul 20/16, isi 14/13, keterangan 12/11.
+// Bobot maksimal Medium (permintaan owner 25 Sep 2026: font Android jangan
+// berat). Hierarki dibangun dari ukuran, warna (Ink vs Muted), jarak baris, dan
+// tracking yang ikut ukuran (audit apple-design 15 Okt 2026): huruf besar
+// dirapatkan, huruf kecil sedikit direnggangkan, label kapital lebih lebar.
 object PosType {
     private val family = FontFamily.SansSerif
-    // Angka besar sedikit dirapatkan; makin besar huruf, makin renggang ia terbaca.
     val Amount = TextStyle(fontFamily = family, fontSize = 32.sp, lineHeight = 38.sp, fontWeight = FontWeight.Medium, letterSpacing = (-0.02).em)
     val AmountSmall = TextStyle(fontFamily = family, fontSize = 22.sp, lineHeight = 28.sp, fontWeight = FontWeight.Medium, letterSpacing = (-0.01).em)
-    val Title = TextStyle(fontFamily = family, fontSize = 20.sp, lineHeight = 26.sp, fontWeight = FontWeight.Medium)
-    val Heading = TextStyle(fontFamily = family, fontSize = 16.sp, lineHeight = 22.sp, fontWeight = FontWeight.Medium)
+    val Title = TextStyle(fontFamily = family, fontSize = 20.sp, lineHeight = 26.sp, fontWeight = FontWeight.Medium, letterSpacing = (-0.01).em)
+    val Heading = TextStyle(fontFamily = family, fontSize = 16.sp, lineHeight = 22.sp, fontWeight = FontWeight.Medium, letterSpacing = (-0.005).em)
     val Label = TextStyle(fontFamily = family, fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.Medium)
     val Body = TextStyle(fontFamily = family, fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.Normal)
     val BodySmall = TextStyle(fontFamily = family, fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight.Normal)
-    val Caption = TextStyle(fontFamily = family, fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.Normal)
-    val Micro = TextStyle(fontFamily = family, fontSize = 11.sp, lineHeight = 14.sp, fontWeight = FontWeight.Medium)
+    val Caption = TextStyle(fontFamily = family, fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.Normal, letterSpacing = 0.01.em)
+    val Micro = TextStyle(fontFamily = family, fontSize = 11.sp, lineHeight = 14.sp, fontWeight = FontWeight.Medium, letterSpacing = 0.02.em)
+    // Label kecil berhuruf kapital (CASH RECEIVED, nama kelompok): kapital butuh jarak lebih lebar.
+    val Eyebrow = Micro.copy(letterSpacing = 0.06.em)
+    // Angka di badge 16 dp: baris dipangkas supaya angka tepat di tengah lingkaran.
+    val Badge = TextStyle(fontFamily = family, fontSize = 10.sp, lineHeight = 10.sp, fontWeight = FontWeight.Medium, lineHeightStyle = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.Both))
 }
 
 @Composable

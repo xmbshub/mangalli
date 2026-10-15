@@ -167,7 +167,7 @@ private fun BrandPanel(state: PosUiState, actions: PosActions, modifier: Modifie
             Text(SimpleDateFormat("HH:mm", Locale.ROOT).format(Date(now)), style = PosType.Amount.copy(fontSize = PosType.Amount.fontSize * 2.6f, lineHeight = PosType.Amount.lineHeight * 2.4f), color = Pos.Ink)
             Text(SimpleDateFormat("EEEE, d MMMM", Locale.ENGLISH).format(Date(now)), style = PosType.Heading, color = Pos.Text)
             clockDriftLabel(state.operations.clockOffsetMillis)?.let { drift ->
-                Text("This tablet's clock is $drift. Fix it in Android settings.", style = PosType.BodySmall, color = Pos.Warning)
+                Text("This ${deviceNoun()}'s clock is $drift. Fix it in Android settings.", style = PosType.BodySmall, color = Pos.Warning)
             }
             if (state.deviceRegistered) {
                 Spacer(Modifier.height(Pos.Space2))

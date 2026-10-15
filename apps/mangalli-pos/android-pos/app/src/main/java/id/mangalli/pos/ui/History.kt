@@ -60,7 +60,7 @@ fun HistoryScreen(state: PosUiState, actions: PosActions) {
         return
     }
     Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(Pos.Space4)) {
-        ScreenHeader("History", "Last 7 days on this tablet · ${formatPrice(paidTotal)} paid") {
+        ScreenHeader("History", "Last 7 days on this ${deviceNoun()} · ${formatPrice(paidTotal)} paid") {
             Segmented(listOf("sales" to "Sales", "shifts" to "Shifts"), tab, { tab = it }, modifier = Modifier.width(240.dp), height = Pos.Control)
         }
         Row(modifier = Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(Pos.Space4)) {

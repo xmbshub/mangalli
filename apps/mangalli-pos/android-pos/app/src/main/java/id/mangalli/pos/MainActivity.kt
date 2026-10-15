@@ -603,7 +603,7 @@ class MainActivity : ComponentActivity() {
     )
 
     private fun sendReport(category: String, title: String, message: String?, fingerprint: String? = null, extra: Map<String, Any?> = emptyMap()) {
-        val device = stored(KEY_DEVICE_TOKEN) ?: error("Connect this tablet to an outlet first.")
+        val device = stored(KEY_DEVICE_TOKEN) ?: error("Connect this ${this@MainActivity.device} to an outlet first.")
         val context = JSONObject().also { json -> (reportContext() + extra).forEach { (key, value) -> json.put(key, value ?: JSONObject.NULL) } }
         api().report(
             device, currentStaff?.staffToken,
@@ -963,7 +963,7 @@ class MainActivity : ComponentActivity() {
 
     private fun stored(key: String): String? = runCatching { tokenStore.read(key) }.getOrNull()?.takeIf { it.isNotBlank() }
 
-    private fun api(): AndroidPosApi = AndroidPosApi(baseUrl)
+    private fun api(): AndroidPosApi = AndroidPosApi(baseUrl, device)
 
     // ---------- Update aplikasi ----------
 

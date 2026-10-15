@@ -207,8 +207,8 @@ private fun RailItem(icon: ImageVector, label: String, selected: Boolean, badge:
             Box(modifier = Modifier.width(52.dp).height(32.dp).clip(CircleShape).background(background), contentAlignment = Alignment.Center) {
                 Icon(icon, contentDescription = null, tint = foreground, modifier = Modifier.size(22.dp))
             }
-            if (badge > 0) CountBadge(badge, modifier = Modifier.align(Alignment.TopEnd))
-            else if (dot != null) StatusDot(dot, modifier = Modifier.align(Alignment.TopEnd).padding(top = 2.dp, end = 8.dp))
+            // Badge di sudut ikon (bukan sudut kapsul), aturan yang sama dengan ponsel.
+            Box(modifier = Modifier.align(Alignment.Center)) { IconBadge(count = badge, dot = dot, iconSize = 22.dp) }
         }
         Text(label, style = if (selected) PosType.Micro else PosType.Micro.copy(fontWeight = PosType.Body.fontWeight), color = if (selected) Pos.Ink else Pos.Muted, textAlign = TextAlign.Center)
     }
@@ -236,7 +236,7 @@ internal fun SyncButton(operations: OperationsState, onSync: () -> Unit) {
                 tint = if (operations.unsynced > 0) Pos.Warning else Pos.Muted,
                 modifier = Modifier.size(22.dp).then(if (operations.syncing) Modifier.rotate(angle) else Modifier),
             )
-            StatusDot(if (operations.isOnline) Pos.Success else Pos.Subtle, modifier = Modifier.align(Alignment.TopEnd))
+            Box(modifier = Modifier.align(Alignment.Center)) { IconBadge(dot = if (operations.isOnline) Pos.Success else Pos.Subtle, iconSize = 22.dp) }
         }
         AnimatedContent(targetState = when {
             operations.syncing -> "Syncing"

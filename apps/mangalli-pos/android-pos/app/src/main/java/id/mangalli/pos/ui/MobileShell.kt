@@ -30,8 +30,6 @@ import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Sync
-import androidx.compose.material3.Badge
-import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -58,8 +56,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 
 // Kerangka ponsel (permintaan owner 14 Okt 2026): TopAppBar di atas, NavigationBar
 // di bawah, isi satu kolom. Semua kontrol Material 3 bawaan; logika, data, dan
@@ -127,8 +127,9 @@ fun MobileTopBar(title: String, subtitle: String? = null, onBack: (() -> Unit)? 
         TopAppBar(
             title = {
                 Column {
-                    Text(title, style = PosType.Heading, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    if (subtitle != null) Text(subtitle, style = PosType.Caption, color = Pos.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    // Judul layar elemen terbesar (20, sama dengan tablet); keterangan 13 abu tetap terbaca di bawahnya.
+                    Text(title, style = PosType.Title, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    if (subtitle != null) Text(subtitle, style = PosType.BodySmall, color = Pos.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             },
             navigationIcon = {
@@ -160,10 +161,8 @@ private fun MobileScreenBar(state: PosUiState, actions: PosActions, onCustomAmou
     MobileTopBar(title, subtitle) {
         when (state.screen) {
             Screen.Menu -> {
-                IconButton(onClick = onBills) {
-                    BadgedBox(badge = { if (state.openBills.isNotEmpty()) Badge(containerColor = Pos.Primary, contentColor = Color.White) { Text(state.openBills.size.toString()) } }) {
-                        Icon(Icons.Outlined.ReceiptLong, contentDescription = "Open bills")
-                    }
+                BadgedIconButton(onClick = onBills, count = state.openBills.size) {
+                    Icon(Icons.Outlined.ReceiptLong, contentDescription = "Open bills", tint = Pos.Text)
                 }
                 IconButton(onClick = onCustomAmount) { Icon(Icons.Outlined.Calculate, contentDescription = "Custom amount") }
             }
@@ -175,27 +174,30 @@ private fun MobileScreenBar(state: PosUiState, actions: PosActions, onCustomAmou
     }
 }
 
-// Sinkron di TopAppBar: titik hijau = online, angka = perubahan yang belum terkirim.
+// Sinkron di TopAppBar: titik hijau = online (abu = offline), angka amber = perubahan
+// yang belum terkirim. Ikon tetap netral supaya badge yang menonjol, bukan ikonnya.
 @Composable
 private fun MobileSyncAction(operations: OperationsState, onSync: () -> Unit) {
     val spin = rememberInfiniteTransition(label = "mobile-sync")
     val angle by spin.animateFloat(0f, 360f, infiniteRepeatable(tween(900, easing = LinearEasing), RepeatMode.Restart), label = "mobile-sync-angle")
-    IconButton(onClick = onSync, enabled = !operations.syncing) {
-        BadgedBox(badge = {
-            if (operations.unsynced > 0) Badge(containerColor = Pos.Warning, contentColor = Color.White) { Text(operations.unsynced.toString()) }
-            else Badge(containerColor = if (operations.isOnline) Pos.Success else Pos.Subtle, modifier = Modifier.size(8.dp))
-        }) {
-            Icon(
-                Icons.Outlined.Sync,
-                contentDescription = when {
-                    operations.syncing -> "Syncing"
-                    operations.isOnline -> "Online, sync now"
-                    else -> "Offline"
-                },
-                tint = if (operations.unsynced > 0) Pos.Warning else Pos.Text,
-                modifier = if (operations.syncing) Modifier.rotate(angle) else Modifier,
-            )
-        }
+    BadgedIconButton(
+        onClick = onSync,
+        enabled = !operations.syncing,
+        count = operations.unsynced,
+        dot = if (operations.isOnline) Pos.Success else Pos.Subtle,
+        countColor = if (operations.isOnline) Pos.Warning else Pos.Subtle,
+    ) {
+        Icon(
+            Icons.Outlined.Sync,
+            contentDescription = when {
+                operations.syncing -> "Syncing"
+                operations.unsynced > 0 -> "${operations.unsynced} waiting, sync now"
+                operations.isOnline -> "Online, sync now"
+                else -> "Offline"
+            },
+            tint = if (operations.isOnline) Pos.Text else Pos.Muted,
+            modifier = if (operations.syncing) Modifier.rotate(angle) else Modifier,
+        )
     }
 }
 
@@ -258,12 +260,9 @@ private fun RowScope.NavItem(state: PosUiState, actions: PosActions, screen: Scr
         selected = state.screen == screen,
         onClick = { actions.navigate(screen) },
         icon = {
-            BadgedBox(badge = {
-                if (badge > 0) Badge(containerColor = Pos.Primary, contentColor = Color.White) { Text(if (badge > 99) "99+" else badge.toString()) }
-                else if (dot) Badge(containerColor = Pos.Warning)
-            }) { Icon(icon, contentDescription = null) }
+            IconWithBadge(count = badge, dot = if (dot) Pos.Warning else null) { Icon(icon, contentDescription = null) }
         },
-        label = { Text(label, style = PosType.Micro) },
+        label = { Text(label, style = PosType.Caption.copy(fontWeight = FontWeight.Medium, letterSpacing = 0.em)) },
         colors = NavigationBarItemDefaults.colors(
             selectedIconColor = Pos.PrimaryPressed,
             selectedTextColor = Pos.Ink,

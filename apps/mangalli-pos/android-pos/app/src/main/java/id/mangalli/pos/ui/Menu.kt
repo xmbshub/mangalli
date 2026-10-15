@@ -159,8 +159,9 @@ private fun OrderBar(state: PosUiState, onOpen: () -> Unit) {
     AnimatedVisibility(visible = count > 0 || state.draft.activeBillId != null, enter = slideInVertically { it } + fadeIn(), exit = slideOutVertically { it } + fadeOut()) {
         androidx.compose.material3.Button(
             onClick = onOpen,
-            modifier = Modifier.fillMaxWidth().padding(top = Pos.Space3).height(Pos.ControlLarge + 4.dp),
-            shape = RoundedCornerShape(Pos.RadiusCard),
+            // Setinggi, sebulat, dan seukuran teks tombol besar lain (Charge, Add) supaya satu keluarga.
+            modifier = Modifier.fillMaxWidth().padding(top = Pos.Space3).height(Pos.ControlLarge),
+            shape = RoundedCornerShape(Pos.Radius),
             colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Pos.Primary, contentColor = Color.White),
             contentPadding = PaddingValues(horizontal = Pos.Space4),
         ) {
@@ -168,8 +169,8 @@ private fun OrderBar(state: PosUiState, onOpen: () -> Unit) {
                 Text(count.toString(), style = PosType.Label, color = Color.White)
             }
             Spacer(Modifier.width(Pos.Space3))
-            Text(state.draft.activeBillLabel ?: "View order", style = PosType.Label, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(formatPrice(state.pricing.total), style = PosType.Label)
+            Text(state.draft.activeBillLabel ?: "View order", style = PosType.Heading, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(formatPrice(state.pricing.total), style = PosType.Heading)
         }
     }
 }

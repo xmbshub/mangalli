@@ -143,7 +143,7 @@ object PromoRules {
 
     // Alasan kupon tidak bisa dipakai (null = bisa), dengan pesan untuk kasir.
     fun couponProblem(promo: Promo?, lines: List<PromoLine>, nowMillis: Long, zone: ZoneId): String? {
-        if (promo?.code == null) return "This coupon code isn't valid on this tablet."
+        if (promo?.code == null) return "This coupon code isn't valid at this outlet."
         val today = Instant.ofEpochMilli(nowMillis).atZone(zone).toLocalDate().toString()
         if (promo.startsOn != null && today < promo.startsOn) return "This coupon starts on ${promo.startsOn}."
         if (promo.endsOn != null && today > promo.endsOn) return "This coupon has expired."
