@@ -14,6 +14,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 
 // Design system tablet Mangalli. Satu sumber untuk warna, sudut, jarak, dan
@@ -111,8 +112,9 @@ fun Tone.background(): Color = when (this) {
 // Skala huruf: angka besar 32, judul 20/16/14, isi 14/13, keterangan 12/11.
 object PosType {
     private val family = FontFamily.SansSerif
-    val Amount = TextStyle(fontFamily = family, fontSize = 32.sp, lineHeight = 38.sp, fontWeight = FontWeight.Medium)
-    val AmountSmall = TextStyle(fontFamily = family, fontSize = 22.sp, lineHeight = 28.sp, fontWeight = FontWeight.Medium)
+    // Angka besar sedikit dirapatkan; makin besar huruf, makin renggang ia terbaca.
+    val Amount = TextStyle(fontFamily = family, fontSize = 32.sp, lineHeight = 38.sp, fontWeight = FontWeight.Medium, letterSpacing = (-0.02).em)
+    val AmountSmall = TextStyle(fontFamily = family, fontSize = 22.sp, lineHeight = 28.sp, fontWeight = FontWeight.Medium, letterSpacing = (-0.01).em)
     val Title = TextStyle(fontFamily = family, fontSize = 20.sp, lineHeight = 26.sp, fontWeight = FontWeight.Medium)
     val Heading = TextStyle(fontFamily = family, fontSize = 16.sp, lineHeight = 22.sp, fontWeight = FontWeight.Medium)
     val Label = TextStyle(fontFamily = family, fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.Medium)

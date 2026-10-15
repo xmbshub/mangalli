@@ -240,12 +240,13 @@ fun PaymentPanel(total: Double, busy: Boolean, confirmLabel: String, onConfirm: 
 
 @Composable
 fun PaymentSuccessDialog(result: SaleResult, actions: PosActions) {
-    val scale = remember { Animatable(0.4f) }
+    val scale = remember { Animatable(0.8f) }
     val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
     LaunchedEffect(result.code) {
-        // Getaran singkat saat lunas: kasir tahu tanpa melihat layar.
-        haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
-        scale.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow))
+        // Getar "berhasil" di frame yang sama dengan tanda lunas muncul: kasir tahu tanpa
+        // melihat layar. Muncul cepat dan pasti (damping 0,75), bukan memantul lambat.
+        haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.Confirm)
+        scale.animateTo(1f, spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMedium))
     }
     PosDialog(onDismiss = actions::closeSaleResult, width = 460.dp) {
         Column(

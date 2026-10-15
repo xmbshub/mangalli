@@ -3,6 +3,25 @@
 Version numbers follow the cashier tablet app. Each version also includes the
 dashboard changes released with it.
 
+## 0.9.1
+
+- Buttons spring back without wobbling when released; the cart badge and the
+  payment-complete check pop in once instead of bouncing.
+- The app vibrates differently for success (payment complete), rejection
+  (wrong PIN, error messages) and plain key taps.
+- The order total slides up when it grows and down when it shrinks.
+- Dashboard on phones: drag the "More" sheet or a drawer's header down to
+  close it; it follows your finger, a quick flick closes it, and it can be
+  caught again while moving. Closing with X slides it back down.
+- Drawers, toasts and "What's new" now animate out the way they came in
+  instead of vanishing.
+- Reordering options keeps the dragged row under your finger, and the other
+  rows slide into place.
+- Reduced motion fades instead of sliding everywhere, including menus and the
+  import progress; the bottom bar and header are translucent, and turn solid
+  with reduced transparency or high contrast.
+- Text sizes follow the browser's text size setting.
+
 ## 0.9.0
 
 - Pin the dashboard to Next.js 16.4.0, matching the maintained platform

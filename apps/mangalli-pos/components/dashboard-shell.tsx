@@ -14,6 +14,7 @@ import { AskEline } from "@/components/ask-eline";
 import { ChartTips } from "@/components/chart-tips";
 import { Toaster } from "@/components/interactive";
 import { OrderAlerts, OrderSoundToggle } from "@/components/order-alerts";
+import { useSheetMotion } from "@/components/sheet-motion";
 import { WhatsNew, type DashboardRelease } from "@/components/whats-new";
 import type { Operator } from "@/server/auth";
 
@@ -65,12 +66,6 @@ function MobileTabBar({ visible, activePath, badge }: { visible: Array<{ title: 
   const rest = items.filter((item) => !primary.includes(item));
   const isActive = (item: NavItem) => activePath === item.href || activePath.startsWith(`${item.href}/`);
   const count = (item: NavItem) => ("count" in item && item.count ? badge[item.count] : 0);
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") setOpenAt(null); };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open]);
   const restBadge = rest.reduce((total, item) => total + count(item), 0);
   return (
     <>
@@ -85,28 +80,40 @@ function MobileTabBar({ visible, activePath, badge }: { visible: Array<{ title: 
           </button>
         ) : null}
       </nav>
-      {open ? (
-        <div className="sheet-backdrop" onClick={() => setOpen(false)}>
-          <div aria-label="More pages" aria-modal="true" className="sheet" onClick={(event) => event.stopPropagation()} role="dialog">
-            <span className="sheet-handle" />
-            <header className="sheet-head"><strong>More</strong><button aria-label="Close" className="icon-button" onClick={() => setOpen(false)} type="button"><X size={18} /></button></header>
-            {visible.map((group) => {
-              const groupItems = group.items.filter((item) => rest.includes(item));
-              if (!groupItems.length) return null;
-              return (
-                <section className="sheet-group" key={group.title}>
-                  <span className="nav-group">{group.title}</span>
-                  <div className="sheet-grid">{groupItems.map((item) => {
-                    const Icon = item.icon;
-                    return <Link aria-current={isActive(item) ? "page" : undefined} className="sheet-tile" href={item.href} key={item.href}><span className="sheet-tile-icon"><Icon size={20} />{count(item) ? <span className="tabbar-badge">{count(item)}</span> : null}</span><span>{item.label}</span></Link>;
-                  })}</div>
-                </section>
-              );
-            })}
-          </div>
-        </div>
-      ) : null}
+      {open ? <MoreSheet badge={count} isActive={isActive} onClosed={() => setOpen(false)} rest={rest} visible={visible} /> : null}
     </>
+  );
+}
+
+// Lembar "More": muncul dari bilah bawah dan kembali ke sana, bisa ditarik turun
+// dari mana saja (isinya tidak digulir) atau ditutup dengan X, tirai, dan Esc.
+function MoreSheet({ visible, rest, isActive, badge, onClosed }: { visible: Array<{ title: string; items: NavItem[] }>; rest: NavItem[]; isActive: (item: NavItem) => boolean; badge: (item: NavItem) => number; onClosed: () => void }) {
+  const { sheet, backdrop, close } = useSheetMotion<HTMLDivElement, HTMLDivElement>({ handle: ".sheet-handle, .sheet-head", whole: true, onClosed });
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") close(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [close]);
+  return (
+    <div className="sheet-backdrop" onClick={() => close()} ref={backdrop}>
+      <div aria-label="More pages" aria-modal="true" className="sheet" onClick={(event) => event.stopPropagation()} ref={sheet} role="dialog">
+        <span className="sheet-handle" />
+        <header className="sheet-head"><strong>More</strong><button aria-label="Close" className="icon-button" onClick={() => close()} type="button"><X size={18} /></button></header>
+        {visible.map((group) => {
+          const groupItems = group.items.filter((item) => rest.includes(item));
+          if (!groupItems.length) return null;
+          return (
+            <section className="sheet-group" key={group.title}>
+              <span className="nav-group">{group.title}</span>
+              <div className="sheet-grid">{groupItems.map((item) => {
+                const Icon = item.icon;
+                return <Link aria-current={isActive(item) ? "page" : undefined} className="sheet-tile" href={item.href} key={item.href}><span className="sheet-tile-icon"><Icon size={20} />{badge(item) ? <span className="tabbar-badge">{badge(item)}</span> : null}</span><span>{item.label}</span></Link>;
+              })}</div>
+            </section>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 

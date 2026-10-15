@@ -1,7 +1,7 @@
 "use client";
 
 import { Sparkles, X } from "lucide-react";
-import { useSyncExternalStore } from "react";
+import { useState, useSyncExternalStore } from "react";
 
 // Catatan rilis dashboard (migrasi 017): tampil sekali per browser untuk rilis
 // terbaru. Dashboard selalu sudah versi terbaru setelah deploy; kartu ini hanya
@@ -22,8 +22,11 @@ const subscribeSeen = (callback: () => void) => {
 export function WhatsNew({ release }: { release: DashboardRelease | null }) {
   // Server: anggap sudah dilihat agar kartu tidak berkedip saat hidrasi.
   const seen = useSyncExternalStore(subscribeSeen, readSeen, () => Number.POSITIVE_INFINITY);
+  // Menutup memudar lewat jalur munculnya; tandai "sudah dilihat" setelah animasinya selesai.
+  const [leaving, setLeaving] = useState(false);
   if (!release || seen >= release.code) return null;
-  const close = () => {
+  const close = () => setLeaving(true);
+  const markSeen = () => {
     dismissed = release.code;
     try { localStorage.setItem(STORAGE_KEY, String(release.code)); } catch { /* abaikan */ }
     window.dispatchEvent(new Event(SEEN_EVENT));
@@ -31,7 +34,7 @@ export function WhatsNew({ release }: { release: DashboardRelease | null }) {
   const lines = release.notes.split("\n").map((line) => line.replace(/^[-*•]\s*/, "").trim()).filter(Boolean);
   // Dialog di tengah layar dengan latar redup, seperti panel lain di dashboard.
   return (
-    <div className="whats-new-backdrop" onClick={(event) => { if (event.target === event.currentTarget) close(); }} onKeyDown={(event) => { if (event.key === "Escape") close(); }}>
+    <div className={leaving ? "whats-new-backdrop leaving" : "whats-new-backdrop"} onAnimationEnd={(event) => { if (leaving && event.target === event.currentTarget) markSeen(); }} onClick={(event) => { if (event.target === event.currentTarget) close(); }} onKeyDown={(event) => { if (event.key === "Escape") close(); }}>
       <section aria-labelledby="whats-new-title" aria-modal="true" className="whats-new" role="dialog">
         <header className="whats-new-head">
           <span className="whats-new-icon"><Sparkles size={18} /></span>

@@ -4,9 +4,10 @@ import { CalendarDays, Check, ChevronDown, CircleAlert, ChevronLeft, ChevronRigh
 import Form from "next/form";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { createContext, startTransition, useCallback, useActionState, useContext, useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode, type RefObject } from "react";
+import { createContext, startTransition, useCallback, useActionState, useContext, useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type MouseEvent, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
 
+import { useSheetMotion } from "@/components/sheet-motion";
 import type { FormState } from "@/server/http";
 
 // Bagian interaktif design system: form aksi dengan pesan hasil di tempat,
@@ -20,7 +21,7 @@ export const useActionFormState = () => useContext(FormContext);
 
 // Notifikasi hasil aksi sebagai toast (permintaan owner 5 Okt 2026), bukan
 // teks di dalam form. <Toaster /> di kerangka dashboard yang menampilkannya.
-export type Toast = { id: number; tone: "ok" | "error"; message: string };
+export type Toast = { id: number; tone: "ok" | "error"; message: string; leaving?: boolean };
 const TOAST_EVENT = "mangalli:toast";
 export function showToast(tone: Toast["tone"], message: string) {
   window.dispatchEvent(new CustomEvent<Omit<Toast, "id">>(TOAST_EVENT, { detail: { tone, message } }));
@@ -28,24 +29,27 @@ export function showToast(tone: Toast["tone"], message: string) {
 
 export function Toaster() {
   const [toasts, setToasts] = useState<Toast[]>([]);
+  // Toast keluar lewat jalur masuknya (naik dan memudar), baru dilepas setelah animasinya selesai.
+  const leave = useCallback((id: number) => setToasts((current) => current.map((item) => (item.id === id ? { ...item, leaving: true } : item))), []);
+  const remove = (id: number) => setToasts((current) => current.filter((item) => item.id !== id));
   useEffect(() => {
     let next = 1;
     const onToast = (event: Event) => {
       const detail = (event as CustomEvent<Omit<Toast, "id">>).detail;
       const toast = { ...detail, id: next++ };
       setToasts((current) => [...current.filter((item) => item.message !== toast.message), toast].slice(-3));
-      window.setTimeout(() => setToasts((current) => current.filter((item) => item.id !== toast.id)), toast.tone === "error" ? 7000 : 3500);
+      window.setTimeout(() => leave(toast.id), toast.tone === "error" ? 7000 : 3500);
     };
     window.addEventListener(TOAST_EVENT, onToast);
     return () => window.removeEventListener(TOAST_EVENT, onToast);
-  }, []);
+  }, [leave]);
   return (
     <div aria-live="polite" className="toasts">
       {toasts.map((toast) => (
-        <div className={`toast ${toast.tone}`} key={toast.id} role={toast.tone === "error" ? "alert" : "status"}>
+        <div className={`toast ${toast.tone}${toast.leaving ? " leaving" : ""}`} key={toast.id} onAnimationEnd={() => { if (toast.leaving) remove(toast.id); }} role={toast.tone === "error" ? "alert" : "status"}>
           {toast.tone === "ok" ? <Check size={16} /> : <CircleAlert size={16} />}
           <span>{toast.message}</span>
-          <button aria-label="Dismiss" onClick={() => setToasts((current) => current.filter((item) => item.id !== toast.id))} type="button"><X size={14} /></button>
+          <button aria-label="Dismiss" onClick={() => leave(toast.id)} type="button"><X size={14} /></button>
         </div>
       ))}
     </div>
@@ -178,6 +182,14 @@ function SwitchButton({ checked, label }: { checked: boolean; label: string }) {
 export function Drawer({ title, description, closeHref, children, footer }: { title: string; description?: string; closeHref: string; children: ReactNode; footer?: ReactNode }) {
   const router = useRouter();
   const heading = useRef<HTMLHeadingElement>(null);
+  // Tutup lewat jalur munculnya (desktop memudar turun, ponsel meluncur ke bawah
+  // dan bisa ditarik dari kepala), baru pindah ke closeHref.
+  const { sheet: panel, backdrop, close } = useSheetMotion<HTMLElement, HTMLAnchorElement>({ handle: ".drawer-header", onClosed: useCallback(() => router.push(closeHref, { scroll: false }), [closeHref, router]) });
+  const closeLink = (event: MouseEvent) => {
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) return;
+    event.preventDefault();
+    close();
+  };
   useEffect(() => {
     // Fokus ke isian pertama supaya bisa langsung mengetik; di layar sentuh ke
     // judul saja agar keyboard tidak langsung menutupi form.
@@ -186,20 +198,20 @@ export function Drawer({ title, description, closeHref, children, footer }: { ti
     // Esc dari panel Ask Eline atau dropdown yang terbuka bukan untuk drawer.
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== "Escape" || event.defaultPrevented || (event.target as Element | null)?.closest?.(".ask-eline")) return;
-      router.push(closeHref, { scroll: false });
+      close();
     };
     window.addEventListener("keydown", onKey);
     const overflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => { window.removeEventListener("keydown", onKey); document.body.style.overflow = overflow; };
-  }, [closeHref, router]);
+  }, [close]);
   return (
     <>
-      <Link aria-label="Close panel" className="drawer-backdrop" href={closeHref} scroll={false} />
-      <aside aria-labelledby="drawer-title" aria-modal="true" className="drawer" role="dialog">
+      <Link aria-label="Close panel" className="drawer-backdrop" href={closeHref} onClick={closeLink} ref={backdrop} scroll={false} />
+      <aside aria-labelledby="drawer-title" aria-modal="true" className="drawer" ref={panel} role="dialog">
         <header className="drawer-header">
           <div><h2 id="drawer-title" ref={heading} tabIndex={-1}>{title}</h2>{description ? <p>{description}</p> : null}</div>
-          <Link aria-label="Close" className="icon-button" href={closeHref} scroll={false}><X size={18} /></Link>
+          <Link aria-label="Close" className="icon-button" href={closeHref} onClick={closeLink} scroll={false}><X size={18} /></Link>
         </header>
         <div className="drawer-body">{children}</div>
         {footer ? <footer className="drawer-footer">{footer}</footer> : null}

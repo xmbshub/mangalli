@@ -106,7 +106,7 @@ fun MenuScreen(state: PosUiState, actions: PosActions, customAmount: Boolean = f
     val haptics = LocalHapticFeedback.current
     val onProduct = { product: CatalogProductEntity ->
         if (modifierGroups(product).isEmpty()) {
-            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            haptics.performHapticFeedback(HapticFeedbackType.KeyboardTap)
             actions.addProduct(product, emptyList(), 1, "", null)
         } else {
             sheet = product to null
@@ -290,9 +290,10 @@ private fun ProductCard(product: CatalogProductEntity, quantityInCart: Int, stoc
     val interaction = remember { MutableInteractionSource() }
     // Habis karena stok (dan belum ada di keranjang) sama dengan ditandai habis di dashboard.
     val soldOut = product.isSoldOut || (stockLeft != null && stockLeft <= 0 && quantityInCart == 0)
+    // Sedikit "pop" (damping 0,75) tanpa bergoyang berulang.
     val badgeScale by animateFloatAsState(
         targetValue = if (quantityInCart > 0) 1f else 0f,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
+        animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMedium),
         label = "cart-badge",
     )
     Column(
@@ -511,7 +512,11 @@ private fun OrderPane(state: PosUiState, actions: PosActions, onEditItem: (CartI
             if (state.outlet.taxRate > 0) KeyValue(OfflineOrders.taxLabel(), formatPrice(pricing.tax))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Total", style = PosType.Label, color = Pos.Ink, modifier = Modifier.weight(1f))
-                AnimatedContent(targetState = total, transitionSpec = { (slideInVertically { -it / 2 } + fadeIn()) togetherWith (slideOutVertically { it / 2 } + fadeOut()) }, label = "order-total") { value ->
+                // Arah gerak angka mengikuti perubahannya: naik saat total bertambah, turun saat berkurang.
+                AnimatedContent(targetState = total, transitionSpec = {
+                    val up = if (targetState >= initialState) 1 else -1
+                    (slideInVertically { up * it / 2 } + fadeIn()) togetherWith (slideOutVertically { -up * it / 2 } + fadeOut())
+                }, label = "order-total") { value ->
                     Text(formatPrice(value), style = PosType.AmountSmall, color = Pos.Ink)
                 }
             }

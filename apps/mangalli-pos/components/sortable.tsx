@@ -2,9 +2,10 @@
 
 import { GripVertical } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 
 import { showToast } from "@/components/interactive";
+import { prefersReducedMotion } from "@/components/sheet-motion";
 import type { FormState } from "@/server/http";
 
 // Susun ulang dengan menyeret pegangan (permintaan owner 5 Okt 2026: urutan
@@ -43,6 +44,35 @@ export function Sortable({ items, onReorder, label, className = "" }: {
     else setOrder(previous);
   };
 
+  // Gerak seret (audit apple-design 15 Okt 2026): baris yang dipegang menempel di
+  // jari dari titik ia dipegang, baris lain bergeser halus ke tempat barunya
+  // (FLIP dari posisi yang sedang tampil, jadi geseran bisa disela), dan saat
+  // dilepas baris meluncur masuk ke slotnya.
+  const drag = useRef<{ id: string; grab: number; pointer: number } | null>(null);
+  const shown = useRef(new Map<string, number>());
+  const follow = useCallback(() => {
+    const current = drag.current;
+    const row = current ? rows.current.get(current.id) : null;
+    if (!current || !row) return;
+    row.style.transform = "";
+    row.style.transform = `translateY(${current.pointer - current.grab - row.getBoundingClientRect().top}px)`;
+  }, []);
+  const remember = () => rows.current.forEach((row, id) => shown.current.set(id, row.getBoundingClientRect().top));
+  useLayoutEffect(() => {
+    const before = shown.current;
+    if (!before.size) return;
+    shown.current = new Map();
+    rows.current.forEach((row, id) => {
+      if (id === drag.current?.id) return;
+      const from = before.get(id);
+      row.getAnimations().forEach((animation) => animation.cancel());
+      const delta = from === undefined ? 0 : from - row.getBoundingClientRect().top;
+      if (Math.abs(delta) < 1 || prefersReducedMotion()) return;
+      row.animate([{ transform: `translateY(${delta}px)` }, { transform: "none" }], { duration: 200, easing: "cubic-bezier(.2, .8, .2, 1)" });
+    });
+    follow();
+  }, [order, follow]);
+
   const move = (id: string, clientY: number) => {
     const current = latest.current;
     const from = current.indexOf(id);
@@ -57,20 +87,39 @@ export function Sortable({ items, onReorder, label, className = "" }: {
     if (to === from) return;
     const next = current.filter((other) => other !== id);
     next.splice(to, 0, id);
+    // Posisi yang sedang tampil (termasuk geseran yang belum selesai) jadi titik awal FLIP.
+    remember();
     latest.current = next;
     setOrder(next);
   };
 
-  const startDrag = (id: string) => {
+  const startDrag = (id: string, clientY: number) => {
+    const row = rows.current.get(id);
+    if (!row) return;
+    row.getAnimations().forEach((animation) => animation.cancel());
     before.current = latest.current;
+    drag.current = { id, grab: clientY - row.getBoundingClientRect().top, pointer: clientY };
     document.body.classList.add("is-sorting");
     setDragging(id);
-    const onMove = (event: PointerEvent) => move(id, event.clientY);
+    const onMove = (event: PointerEvent) => {
+      if (!drag.current) return;
+      drag.current.pointer = event.clientY;
+      follow();
+      move(id, event.clientY);
+    };
     const finish = (event: PointerEvent) => {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", finish);
       window.removeEventListener("pointercancel", finish);
       document.body.classList.remove("is-sorting");
+      drag.current = null;
+      // Dari posisi jari ke slot, tanpa melompat.
+      const offset = new DOMMatrixReadOnly(getComputedStyle(row).transform).m42;
+      const landed = rows.current.get(id);
+      if (landed) {
+        landed.style.transform = "";
+        if (offset && !prefersReducedMotion()) landed.animate([{ transform: `translateY(${offset}px)` }, { transform: "none" }], { duration: 220, easing: "cubic-bezier(.2, .8, .2, 1)" });
+      }
       setDragging(null);
       if (event.type === "pointercancel") { setOrder(before.current); return; }
       void save(latest.current, before.current);
@@ -98,10 +147,11 @@ export function Sortable({ items, onReorder, label, className = "" }: {
                 const next = order.filter((other) => other !== id);
                 next.splice(to, 0, id);
                 const previous = order;
+                remember();
                 setOrder(next);
                 void save(next, previous);
               }}
-              onPointerDown={(event) => { event.preventDefault(); startDrag(id); }}
+              onPointerDown={(event) => { event.preventDefault(); startDrag(id, event.clientY); }}
               type="button"
             >
               <GripVertical size={16} />

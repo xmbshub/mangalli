@@ -104,7 +104,7 @@ export function MenuImporter({ existingProducts, initialDraft }: { existingProdu
         <span className="import-orb"><Sparkles size={26} /></span>
         <h2>Eline is reading your menu</h2>
         <p>{step}…</p>
-        <div className="import-progress"><span style={{ width: `${Math.min(95, elapsed * 1.6)}%` }} /></div>
+        <div className="import-progress"><span style={{ transform: `scaleX(${Math.min(95, elapsed * 1.6) / 100})` }} /></div>
         <small>{elapsed}s · usually 30 to 60 seconds. Keep this page open.</small>
       </section>
     );

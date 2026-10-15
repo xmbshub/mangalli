@@ -123,9 +123,11 @@ import kotlinx.coroutines.delay
 @Composable
 fun Modifier.pressable(interaction: MutableInteractionSource, enabled: Boolean = true): Modifier {
     val pressed by interaction.collectIsPressedAsState()
+    // Teredam kritis (audit apple-design 15 Okt 2026): tombol kembali ke ukurannya
+    // tanpa memantul. Pantulan hanya pantas sesudah gerak lempar, bukan ketukan.
     val scale by animateFloatAsState(
         targetValue = if (pressed && enabled) 0.97f else 1f,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
+        animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium),
         label = "press-scale",
     )
     return this.scale(scale)
@@ -148,7 +150,7 @@ fun PosButton(
 ) {
     val haptics = LocalHapticFeedback.current
     if (LocalCompact.current) {
-        MaterialPosButton(text, { if (haptic) haptics.performHapticFeedback(HapticFeedbackType.LongPress); onClick() }, modifier, variant, size, icon, enabled, loading)
+        MaterialPosButton(text, { if (haptic) haptics.performHapticFeedback(HapticFeedbackType.VirtualKey); onClick() }, modifier, variant, size, icon, enabled, loading)
         return
     }
     val interaction = remember { MutableInteractionSource() }
@@ -185,7 +187,7 @@ fun PosButton(
             .background(background)
             .then(if (border != null) Modifier.border(1.dp, border, RoundedCornerShape(Pos.Radius)) else Modifier)
             .clickable(interactionSource = interaction, indication = null, enabled = active) {
-                if (haptic) haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                if (haptic) haptics.performHapticFeedback(HapticFeedbackType.VirtualKey)
                 onClick()
             }
             .padding(horizontal = if (size == ButtonSize.Small) Pos.Space3 else Pos.Space4),
@@ -632,7 +634,7 @@ private fun StepperKey(label: String, description: String, width: Dp, height: Dp
         modifier = Modifier
             .size(width, height)
             .clickable(enabled = enabled, onClickLabel = description) {
-                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
                 onClick()
             },
         contentAlignment = Alignment.Center,
@@ -663,7 +665,7 @@ fun Numpad(onKey: (String) -> Unit, onBackspace: () -> Unit, modifier: Modifier 
                             .background(Pos.SurfaceMuted)
                             .border(1.dp, Pos.Line, RoundedCornerShape(Pos.Radius))
                             .clickable(interactionSource = interaction, indication = null) {
-                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                haptics.performHapticFeedback(HapticFeedbackType.KeyboardTap)
                                 focus.clearFocus()
                                 if (key == "⌫") onBackspace() else onKey(key)
                             },
@@ -700,12 +702,13 @@ fun PinPad(
     val rejected = error && pin.length == 6
     LaunchedEffect(error) {
         if (error) {
-            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+            // Getar "tolak" di frame yang sama dengan goyangan titik PIN.
+            haptics.performHapticFeedback(HapticFeedbackType.Reject)
             listOf(-10f, 10f, -8f, 8f, -4f, 0f).forEach { shake.animateTo(it, tween(45)) }
         }
     }
     val press = { key: String ->
-        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+        haptics.performHapticFeedback(HapticFeedbackType.KeyboardTap)
         val next = when {
             key == "clear" -> ""
             key == "⌫" -> if (rejected) "" else pin.dropLast(1)
@@ -981,10 +984,13 @@ fun ConfirmDialog(
 @Composable
 fun BoxScope.ToastHost(toast: ToastMessage?, onDismiss: () -> Unit) {
     val compact = LocalCompact.current
+    val haptics = LocalHapticFeedback.current
     var visible by remember { mutableStateOf<ToastMessage?>(null) }
     LaunchedEffect(toast?.id) {
         if (toast == null) return@LaunchedEffect
         visible = toast
+        // Gagal terasa berbeda dari berhasil, tanpa perlu melihat layar.
+        if (toast.tone == Tone.Danger) haptics.performHapticFeedback(HapticFeedbackType.Reject)
         delay(if (toast.tone == Tone.Danger) 4_500 else 2_600)
         visible = null
         onDismiss()
