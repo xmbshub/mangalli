@@ -7,7 +7,7 @@ import { ActionForm, AutoRefresh, DateField, Drawer, FilterForm, SearchField, Se
 import { Badge, EmptyState, PAGE_SIZE, PageHeader, Pagination, Panel, Tabs, paymentMethodLabel } from "@/components/ui";
 import type { Operator } from "@/server/auth";
 import { kitchenData, orderDetail, ordersData, orderTabs, type OrderRow, type OrderSort, type OrderTab } from "@/server/admin";
-import { minutesSince, outletFormat } from "@/server/format";
+import { elapsedLabel, minutesSince, outletFormat } from "@/server/format";
 import { formatIdr } from "@/server/pos";
 
 const nextStep: Record<string, { status: string; label: string }> = {
@@ -168,8 +168,8 @@ export async function KitchenSection({ operator }: { operator: Operator }) {
                 const waited = minutesSince(order.created_at);
                 return (
                   <article className="ticket" key={order.id}>
-                    <div className="ticket-head"><strong>{order.order_code}</strong><span className={waited >= 15 && column.status !== "ready" ? "late" : ""}>{waited} min</span></div>
-                    <span className="cell-sub">{where(order)}{order.customer_name ? ` · ${order.customer_name}` : ""}</span>
+                    <div className="ticket-head"><strong>{order.order_code}</strong><span className={waited >= 15 && column.status !== "ready" ? "late" : ""}>{elapsedLabel(waited)}</span></div>
+                    <span className="cell-sub">{where(order)}{order.customer_name && order.customer_name !== order.pickup_name ? ` · ${order.customer_name}` : ""}</span>
                     <ul>{order.items.map((item, index) => <li key={index}><span className="qty">{item.quantity}×</span> {item.name}{item.modifier_summary ? <small>{item.modifier_summary}</small> : null}{item.notes ? <small>Note: {item.notes}</small> : null}</li>)}</ul>
                     <OrderActions order={order} />
                   </article>

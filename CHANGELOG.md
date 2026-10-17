@@ -3,6 +3,32 @@
 Version numbers follow the cashier tablet app. Each version also includes the
 dashboard changes released with it.
 
+## 0.9.3
+
+- Scrolling the menu no longer cuts products off with a hard line under the
+  categories: the grid fades softly at its top and bottom edges, only while
+  there is more to scroll, on phones and tablets. The category row fades at
+  its sides when it can be swiped.
+- Dashboard: drawers, Ask Eline, "What's new" and the promotion product list
+  fade at their scroll edges, and the lines under their headers and above
+  their footers (and under the phone header) appear only while content is
+  scrolled behind them.
+- Dashboard on phones: option rows stay on one line (name, price, delete);
+  the save check appears while you edit a row.
+- Every scrolling list in the app fades at its edges the same way: orders,
+  history, shift, settings, the current order, open bills, dialogs and
+  sheets, and swipeable chip rows. The phone header and bottom bar drop
+  their divider lines.
+- History rows line up: the title sits level with the amount and the date
+  with the status, with no line after the last row. Shift dates read
+  "Wed 14 Oct" instead of "2026-10-14".
+- Waiting times read the same on the app and the dashboard Kitchen board
+  ("2 h 5 min", "3 d 2 h" instead of "4496 min"); kitchen tickets keep the
+  order code and time on one line and no longer repeat the customer name.
+- Dashboard: wide tables, the Kitchen board and tabs fade at their side
+  edges while they can scroll; on tablets in portrait, Products and Kitchen
+  fit without side scrolling.
+
 ## 0.9.2
 
 - Calmer, clearer type in the app: weights stay light (medium at most), and

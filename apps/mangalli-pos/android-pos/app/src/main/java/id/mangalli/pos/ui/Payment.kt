@@ -3,12 +3,11 @@ package id.mangalli.pos.ui
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
-import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -23,10 +22,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Check
@@ -85,7 +81,7 @@ fun PaymentDialog(state: PosUiState, actions: PosActions) {
                 verticalArrangement = Arrangement.spacedBy(Pos.Space3),
             ) {
                 SectionLabel(itemCount(state.cart.sumOf { it.quantity }))
-                LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Pos.Space2)) {
+                FadingLazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Pos.Space2)) {
                     items(state.cart, key = { it.cartLineId }) { item ->
                         Row {
                             Text("${item.quantity}×", style = PosType.BodySmall, color = Pos.Muted, modifier = Modifier.width(32.dp))
@@ -143,7 +139,7 @@ fun PaymentPanel(total: Double, busy: Boolean, confirmLabel: String, onConfirm: 
     val compact = LocalCompact.current
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(if (compact) Pos.Space3 else Pos.Space4)) {
         // Ponsel: lima cara bayar tidak muat dalam satu segmen, jadi chip yang bisa digeser.
-        if (compact) Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Pos.Space2)) {
+        if (compact) Row(modifier = Modifier.fillMaxWidth().fadingHorizontalScroll(), horizontalArrangement = Arrangement.spacedBy(Pos.Space2)) {
             paymentMethods.forEach { option -> ChoiceChip(paymentMethodLabel(option), selected = method == option, onClick = { method = option }) }
         } else Segmented(
             options = paymentMethods.map { it to paymentMethodLabel(it) },
@@ -170,7 +166,7 @@ fun PaymentPanel(total: Double, busy: Boolean, confirmLabel: String, onConfirm: 
                     )
                 }
             }
-            Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Pos.Space2)) {
+            Row(modifier = Modifier.fillMaxWidth().fadingHorizontalScroll(), horizontalArrangement = Arrangement.spacedBy(Pos.Space2)) {
                 suggestedCashAmounts(total).forEachIndexed { index, amount ->
                     ChoiceChip(
                         if (index == 0 && amount == total) "Exact" else formatPrice(amount),
@@ -185,7 +181,7 @@ fun PaymentPanel(total: Double, busy: Boolean, confirmLabel: String, onConfirm: 
                 // layar tinggi membiarkan papan mengisi ruang.
                 BoxWithConstraints(modifier = Modifier.weight(1f).fillMaxWidth()) {
                     val pad = (maxHeight - 132.dp).coerceAtLeast(240.dp)
-                    Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(Pos.Space3)) {
+                    Column(modifier = Modifier.fillMaxSize().fadingVerticalScroll(), verticalArrangement = Arrangement.spacedBy(Pos.Space3)) {
                         cashHeader()
                         Numpad(onKey = { digits = appendDigits(digits, it) }, onBackspace = { digits = digits.dropLast(1) }, modifier = Modifier.fillMaxWidth().height(pad))
                     }
@@ -203,7 +199,7 @@ fun PaymentPanel(total: Double, busy: Boolean, confirmLabel: String, onConfirm: 
             }
             // Bagian tengah bisa digulir: dengan keyboard terbuka (ponsel) kolom referensi
             // tetap terlihat dan tombol bayar tetap di atas keyboard.
-            Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(if (compact) Pos.Space3 else Pos.Space4)) {
+            Column(modifier = Modifier.weight(1f).fadingVerticalScroll(), verticalArrangement = Arrangement.spacedBy(if (compact) Pos.Space3 else Pos.Space4)) {
             if (method == PAYMENT_QRIS && qris != null) {
                 QrisCard(qris, total, onEnlarge = { qrisLarge = true }, onPrint = onPrintQris?.let { print -> { qrisResult = null; print { qrisResult = it ?: "" } } }, busy = busy)
                 qrisResult?.let { result ->

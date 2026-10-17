@@ -11,9 +11,11 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -39,6 +41,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -92,11 +98,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -664,6 +676,53 @@ fun KeyValue(label: String, value: String, emphasize: Boolean = false, valueColo
     }
 }
 
+// Tepi gulir lembut (audit apple-design, permintaan owner 17 Okt 2026: batas antara
+// kategori dan grid produk terlalu kasar). Isi yang tergulir memudar di tepi wadahnya
+// selebar `fade`, bukan terpotong garis lurus; tiap tepi hanya memudar bila memang ada
+// isi di baliknya (mis. LazyGridState.canScrollBackward / canScrollForward).
+@Composable
+fun Modifier.scrollEdgeFade(top: Boolean, bottom: Boolean, fade: Dp = 20.dp, horizontal: Boolean = false): Modifier {
+    // horizontal = true: "top" = tepi kiri, "bottom" = tepi kanan (baris chip yang digeser).
+    val startAlpha by animateFloatAsState(if (top) 1f else 0f, tween(160), label = "edge-start")
+    val endAlpha by animateFloatAsState(if (bottom) 1f else 0f, tween(160), label = "edge-end")
+    return this
+        .graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
+        .drawWithContent {
+            drawContent()
+            val f = fade.toPx()
+            val length = if (horizontal) size.width else size.height
+            fun edge(from: Float, to: Float, alphaAtFrom: Float, alphaAtTo: Float) {
+                val stops = arrayOf(0f to Color.Black.copy(alpha = alphaAtFrom), 1f to Color.Black.copy(alpha = alphaAtTo))
+                val brush = if (horizontal) Brush.horizontalGradient(*stops, startX = from, endX = to) else Brush.verticalGradient(*stops, startY = from, endY = to)
+                val topLeft = if (horizontal) Offset(minOf(from, to), 0f) else Offset(0f, minOf(from, to))
+                drawRect(brush, topLeft = topLeft, size = if (horizontal) Size(f, size.height) else Size(size.width, f), blendMode = BlendMode.DstIn)
+            }
+            if (startAlpha > 0f) edge(0f, f, 1f - startAlpha, 1f)
+            if (endAlpha > 0f) edge(length - f, length, 1f, 1f - endAlpha)
+        }
+}
+
+// Pembungkus gulir dengan tepi lembut, satu pola untuk semua daftar layar, isi dialog,
+// dan baris chip yang digeser (17 Okt 2026), sama dengan grid menu.
+@Composable
+fun FadingLazyColumn(
+    modifier: Modifier = Modifier,
+    state: LazyListState = rememberLazyListState(),
+    contentPadding: PaddingValues = PaddingValues(0.dp),
+    verticalArrangement: Arrangement.Vertical = Arrangement.Top,
+    content: LazyListScope.() -> Unit,
+) {
+    LazyColumn(modifier = modifier.scrollEdgeFade(top = state.canScrollBackward, bottom = state.canScrollForward), state = state, contentPadding = contentPadding, verticalArrangement = verticalArrangement, content = content)
+}
+
+@Composable
+fun Modifier.fadingVerticalScroll(state: ScrollState = rememberScrollState()): Modifier =
+    scrollEdgeFade(top = state.canScrollBackward, bottom = state.canScrollForward).verticalScroll(state)
+
+@Composable
+fun Modifier.fadingHorizontalScroll(state: ScrollState = rememberScrollState()): Modifier =
+    scrollEdgeFade(top = state.canScrollBackward, bottom = state.canScrollForward, fade = 28.dp, horizontal = true).horizontalScroll(state)
+
 @Composable
 fun HorizontalLine(modifier: Modifier = Modifier) {
     Box(modifier = modifier.fillMaxWidth().height(1.dp).background(Pos.Line))
@@ -954,7 +1013,7 @@ private fun PosSheet(onDismiss: () -> Unit, tall: Boolean, dismissible: Boolean,
 @Composable
 fun ColumnScope.DialogBody(spacing: Dp = Pos.Space4, content: @Composable ColumnScope.() -> Unit) {
     Column(
-        modifier = Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(if (LocalCompact.current) Pos.Space5 else Pos.Space6),
+        modifier = Modifier.weight(1f, fill = false).fadingVerticalScroll().padding(if (LocalCompact.current) Pos.Space5 else Pos.Space6),
         verticalArrangement = Arrangement.spacedBy(spacing),
         content = content,
     )

@@ -13,16 +13,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Print
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.Text
-import androidx.compose.ui.draw.clip
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -32,6 +28,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
@@ -58,7 +55,7 @@ fun ShiftScreen(state: PosUiState, actions: PosActions) {
         if (closed != null) {
             val summary = state.summaryOf(closed)
             PosDialog(onDismiss = { closedId = null }, width = 520.dp) {
-                DialogHeader("Shift closed", "${closed.businessDate} · ${clockLabel(closed.openedAtMillis)} – ${clockLabel(closed.closedAtMillis)}", onClose = { closedId = null })
+                DialogHeader("Shift closed", "${dayLabel(closed.businessDate)} · ${clockLabel(closed.openedAtMillis)} – ${clockLabel(closed.closedAtMillis)}", onClose = { closedId = null })
                 DialogBody(Pos.Space3) {
                     KeyValue("Paid orders", summary.orderCount.toString())
                     KeyValue("Cash sales", formatPrice(summary.cashSales))
@@ -99,7 +96,7 @@ private fun OpenShiftView(state: PosUiState, actions: PosActions, modifier: Modi
     }
     if (LocalCompact.current) {
         // Ponsel: satu kolom yang bisa digulir, papan angka setinggi jempol.
-        Column(modifier = modifier.fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(Pos.Space3)) {
+        Column(modifier = modifier.fillMaxWidth().fadingVerticalScroll(), verticalArrangement = Arrangement.spacedBy(Pos.Space3)) {
             PosCard(padding = PaddingValues(Pos.Space4)) {
                 CardHeader("Open a shift", "Count the cash in the drawer first.")
                 Spacer(Modifier.height(Pos.Space3))
@@ -118,7 +115,7 @@ private fun OpenShiftView(state: PosUiState, actions: PosActions, modifier: Modi
             if (last != null) {
                 val summary = state.summaryOf(last)
                 PosCard(padding = PaddingValues(Pos.Space4)) {
-                    CardHeader("Last shift", "${last.businessDate} · closed by ${last.closedByName ?: last.openedByName ?: "Cashier"}") {
+                    CardHeader("Last shift", "${dayLabel(last.businessDate)} · closed by ${last.closedByName ?: last.openedByName ?: "Cashier"}") {
                         PosIconButton(Icons.Outlined.Print, "Print report", { actions.printShiftReport(last.localUuid) }, outlined = false)
                     }
                     Spacer(Modifier.height(Pos.Space3))
@@ -154,7 +151,7 @@ private fun OpenShiftView(state: PosUiState, actions: PosActions, modifier: Modi
             }
         }
         PosCard(modifier = Modifier.width(360.dp).fillMaxHeight()) {
-            CardHeader("Last shift", last?.let { "${it.businessDate} · closed by ${it.closedByName ?: it.openedByName ?: "Cashier"}" })
+            CardHeader("Last shift", last?.let { "${dayLabel(it.businessDate)} · closed by ${it.closedByName ?: it.openedByName ?: "Cashier"}" })
             Spacer(Modifier.height(Pos.Space4))
             if (last == null) {
                 EmptyState("No shifts yet", modifier = Modifier.fillMaxSize())
@@ -188,7 +185,7 @@ private fun OpenedShiftView(state: PosUiState, actions: PosActions, modifier: Mo
         // Ponsel: angka dua kolom, tombol kas dan tutup shift, lalu transaksi shift.
         // Menghitung laci dibuka sebagai sheet dengan papan angka.
         var counting by remember { mutableStateOf(false) }
-        LazyColumn(modifier = modifier.fillMaxWidth()) {
+        FadingLazyColumn(modifier = modifier.fillMaxWidth()) {
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(Pos.Space3)) {
                     Row(horizontalArrangement = Arrangement.spacedBy(Pos.Space3), modifier = Modifier.height(108.dp)) {
@@ -274,7 +271,7 @@ private fun OpenedShiftView(state: PosUiState, actions: PosActions, modifier: Mo
                 if (shiftOrders.isEmpty() && movements.isEmpty()) {
                     EmptyState("No transactions yet", modifier = Modifier.fillMaxSize())
                 } else {
-                    LazyColumn(modifier = Modifier.fillMaxSize()) {
+                    FadingLazyColumn(modifier = Modifier.fillMaxSize()) {
                         items(movements.reversed(), key = { it.id }) { movement ->
                             Row(modifier = Modifier.fillMaxWidth().padding(horizontal = Pos.Space5, vertical = Pos.Space3), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Pos.Space3)) {
                                 Column(modifier = Modifier.weight(1f)) {

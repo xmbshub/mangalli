@@ -25,9 +25,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.CloudOff
@@ -72,7 +70,7 @@ fun SignInScreen(state: PosUiState, actions: PosActions) {
         // Ponsel: satu kolom; merek dan status di atas, masuk di bawahnya.
         Column(
             modifier = Modifier.fillMaxSize().background(Pos.Surface).statusBarsPadding().navigationBarsPadding().imePadding()
-                .verticalScroll(rememberScrollState()).padding(horizontal = Pos.Space5, vertical = Pos.Space6),
+                .fadingVerticalScroll().padding(horizontal = Pos.Space5, vertical = Pos.Space6),
             verticalArrangement = Arrangement.spacedBy(Pos.Space6),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Pos.Space3)) {
@@ -109,7 +107,7 @@ fun SignInScreen(state: PosUiState, actions: PosActions) {
             contentAlignment = Alignment.Center,
         ) {
             Column(
-                modifier = Modifier.width(440.dp).verticalScroll(rememberScrollState()).padding(vertical = Pos.Space8),
+                modifier = Modifier.width(440.dp).fadingVerticalScroll().padding(vertical = Pos.Space8),
                 verticalArrangement = Arrangement.spacedBy(Pos.Space5),
             ) {
                 AnimatedContent(

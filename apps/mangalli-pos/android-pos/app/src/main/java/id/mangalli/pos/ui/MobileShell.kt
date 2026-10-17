@@ -13,9 +13,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -143,7 +143,6 @@ fun MobileTopBar(title: String, subtitle: String? = null, onBack: (() -> Unit)? 
                 actionIconContentColor = Pos.Text,
             ),
         )
-        HorizontalDivider(color = Pos.Line)
     }
 }
 
@@ -242,8 +241,9 @@ private fun MobileAccountAction(state: PosUiState, actions: PosActions) {
 
 @Composable
 private fun MobileNavigation(state: PosUiState, actions: PosActions) {
+    // Tanpa garis pembatas (17 Okt 2026): bilah putih di atas latar abu sudah terpisah, dan isi
+    // yang digulir memudar sebelum mencapai header dan bilah ini (scrollEdgeFade).
     Column {
-        HorizontalDivider(color = Pos.Line)
         NavigationBar(containerColor = Pos.Surface, tonalElevation = 0.dp) {
             NavItem(state, actions, Screen.Menu, Icons.Outlined.PointOfSale, "Menu")
             NavItem(state, actions, Screen.Orders, Icons.Outlined.ReceiptLong, "Orders", badge = state.needsAttention)

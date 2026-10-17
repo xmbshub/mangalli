@@ -11,14 +11,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Print
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.Text
@@ -74,8 +71,8 @@ fun HistoryScreen(state: PosUiState, actions: PosActions) {
                     if (sales.isEmpty()) {
                         EmptyState("No transactions", modifier = Modifier.fillMaxSize())
                     } else {
-                        LazyColumn(modifier = Modifier.fillMaxSize()) {
-                            items(sales, key = { it.localUuid }) { order ->
+                        FadingLazyColumn(modifier = Modifier.fillMaxSize()) {
+                            itemsIndexed(sales, key = { _, item -> item.localUuid }) { index, order ->
                                 HistoryRow(
                                     title = "${order.code()} · ${order.contextLabel()}",
                                     subtitle = "${dateTimeLabel(order.createdAtMillis)} · ${paymentMethodLabel(order.paymentMethod.takeIf { order.paymentStatus == "completed" })}",
@@ -87,6 +84,7 @@ fun HistoryScreen(state: PosUiState, actions: PosActions) {
                                     },
                                     selected = order.localUuid == selectedOrder,
                                     onClick = { selectedOrder = order.localUuid },
+                                    divider = index < sales.lastIndex,
                                 )
                             }
                         }
@@ -95,16 +93,17 @@ fun HistoryScreen(state: PosUiState, actions: PosActions) {
                     if (state.shifts.isEmpty()) {
                         EmptyState("No shifts yet", modifier = Modifier.fillMaxSize())
                     } else {
-                        LazyColumn(modifier = Modifier.fillMaxSize()) {
-                            items(state.shifts, key = { it.localUuid }) { shift ->
+                        FadingLazyColumn(modifier = Modifier.fillMaxSize()) {
+                            itemsIndexed(state.shifts, key = { _, item -> item.localUuid }) { index, shift ->
                                 val difference = shift.actualCash?.let { it - expectedCashOf(shift, state) }
                                 HistoryRow(
-                                    title = "${shift.businessDate} · ${shift.closedByName ?: shift.openedByName ?: "Cashier"}",
+                                    title = "${dayLabel(shift.businessDate)} · ${shift.closedByName ?: shift.openedByName ?: "Cashier"}",
                                     subtitle = "${clockLabel(shift.openedAtMillis)} – ${if (shift.closedAtMillis == null) "now" else clockLabel(shift.closedAtMillis)}",
                                     amount = difference?.let { signedPrice(it) } ?: "",
                                     pill = if (shift.status == "open") "Open" to Tone.Success else "Closed" to Tone.Neutral,
                                     selected = shift.localUuid == selectedShift,
                                     onClick = { selectedShift = shift.localUuid },
+                                    divider = index < state.shifts.lastIndex,
                                 )
                             }
                         }
@@ -137,7 +136,7 @@ private fun MobileHistory(
         Segmented(listOf("sales" to "Sales", "shifts" to "Shifts"), tab, onTab, modifier = Modifier.fillMaxWidth())
         if (tab == "sales") {
             SearchField(query, onQuery, "Search code, table, or name", modifier = Modifier.fillMaxWidth())
-            Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Pos.Space2)) {
+            Row(modifier = Modifier.fillMaxWidth().fadingHorizontalScroll(), horizontalArrangement = Arrangement.spacedBy(Pos.Space2)) {
                 listOf("all" to "All", "paid" to "Paid", "unpaid" to "Unpaid", "cancelled" to "Cancelled").forEach { (key, label) ->
                     ChoiceChip(label, selected = filter == key, onClick = { onFilter(key) })
                 }
@@ -146,8 +145,8 @@ private fun MobileHistory(
         PosCard(modifier = Modifier.weight(1f).fillMaxWidth(), padding = PaddingValues(0.dp)) {
             if (tab == "sales") {
                 if (sales.isEmpty()) EmptyState("No transactions", modifier = Modifier.fillMaxSize())
-                else LazyColumn(modifier = Modifier.fillMaxSize()) {
-                    items(sales, key = { it.localUuid }) { order ->
+                else FadingLazyColumn(modifier = Modifier.fillMaxSize()) {
+                    itemsIndexed(sales, key = { _, item -> item.localUuid }) { index, order ->
                         MobileHistoryItem(
                             title = "${order.code()} · ${order.contextLabel()}",
                             subtitle = "${dateTimeLabel(order.createdAtMillis)} · ${paymentMethodLabel(order.paymentMethod.takeIf { order.paymentStatus == "completed" })}",
@@ -158,20 +157,22 @@ private fun MobileHistory(
                                 else -> "Unpaid" to Tone.Warning
                             },
                             onClick = { onOrder(order.localUuid) },
+                            divider = index < sales.lastIndex,
                         )
                     }
                 }
             } else {
                 if (state.shifts.isEmpty()) EmptyState("No shifts yet", modifier = Modifier.fillMaxSize())
-                else LazyColumn(modifier = Modifier.fillMaxSize()) {
-                    items(state.shifts, key = { it.localUuid }) { shift ->
+                else FadingLazyColumn(modifier = Modifier.fillMaxSize()) {
+                    itemsIndexed(state.shifts, key = { _, item -> item.localUuid }) { index, shift ->
                         val difference = shift.actualCash?.let { it - expectedCashOf(shift, state) }
                         MobileHistoryItem(
-                            title = "${shift.businessDate} · ${shift.closedByName ?: shift.openedByName ?: "Cashier"}",
+                            title = "${dayLabel(shift.businessDate)} · ${shift.closedByName ?: shift.openedByName ?: "Cashier"}",
                             subtitle = "${clockLabel(shift.openedAtMillis)} – ${if (shift.closedAtMillis == null) "now" else clockLabel(shift.closedAtMillis)}",
                             amount = difference?.let { signedPrice(it) } ?: "",
                             pill = if (shift.status == "open") "Open" to Tone.Success else "Closed" to Tone.Neutral,
                             onClick = { onShift(shift.localUuid) },
+                            divider = index < state.shifts.lastIndex,
                         )
                     }
                 }
@@ -189,7 +190,7 @@ private fun MobileHistory(
     }
     state.shifts.firstOrNull { it.localUuid == selectedShift }?.let { shift ->
         PosDialog(onDismiss = { onShift(null) }) {
-            DialogHeader("Shift ${shift.businessDate}", "Opened by ${shift.openedByName ?: "—"}" + (shift.closedByName?.let { " · closed by $it" } ?: ""), onClose = { onShift(null) })
+            DialogHeader("Shift ${dayLabel(shift.businessDate)}", "Opened by ${shift.openedByName ?: "—"}" + (shift.closedByName?.let { " · closed by $it" } ?: ""), onClose = { onShift(null) })
             DialogBody(Pos.Space3) { ShiftNumbers(shift, state) }
             if (shift.status == "closed") DialogFooter { PosButton("Print report", onClick = { actions.printShiftReport(shift.localUuid) }, variant = ButtonVariant.Secondary, icon = Icons.Outlined.Print) }
         }
@@ -197,24 +198,31 @@ private fun MobileHistory(
 }
 
 @Composable
-private fun MobileHistoryItem(title: String, subtitle: String, amount: String, pill: Pair<String, Tone>, onClick: () -> Unit) {
+private fun MobileHistoryItem(title: String, subtitle: String, amount: String, pill: Pair<String, Tone>, onClick: () -> Unit, divider: Boolean = true) {
     ListItem(
-        headlineContent = { Text(title, style = PosType.Label, color = Pos.Ink, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-        supportingContent = { Text(subtitle, style = PosType.Caption, color = Pos.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-        trailingContent = {
-            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                if (amount.isNotBlank()) Text(amount, style = PosType.Label, color = Pos.Ink)
+        // Dua baris yang sejajar: judul dengan nominal, keterangan dengan status. Bukan kolom
+        // kanan yang ditengahkan terhadap kolom kiri (judul jadi lebih rendah dari nominal).
+        headlineContent = {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Pos.Space3)) {
+                Text(title, style = PosType.Label, color = Pos.Ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                if (amount.isNotBlank()) Text(amount, style = PosType.Label, color = Pos.Ink, maxLines = 1)
+            }
+        },
+        supportingContent = {
+            Row(modifier = Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Pos.Space3)) {
+                Text(subtitle, style = PosType.Caption, color = Pos.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                 Pill(pill.first, pill.second)
             }
         },
         colors = ListItemDefaults.colors(containerColor = Pos.Surface),
         modifier = Modifier.clickable(onClick = onClick),
     )
-    HorizontalLine(modifier = Modifier.padding(start = Pos.Space4))
+    // Garis hanya di antara baris, tidak setelah baris terakhir.
+    if (divider) HorizontalLine(modifier = Modifier.padding(start = Pos.Space4))
 }
 
 @Composable
-private fun HistoryRow(title: String, subtitle: String, amount: String, pill: Pair<String, Tone>, selected: Boolean, onClick: () -> Unit) {
+private fun HistoryRow(title: String, subtitle: String, amount: String, pill: Pair<String, Tone>, selected: Boolean, onClick: () -> Unit, divider: Boolean = true) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -225,16 +233,20 @@ private fun HistoryRow(title: String, subtitle: String, amount: String, pill: Pa
         horizontalArrangement = Arrangement.spacedBy(Pos.Space3),
     ) {
         StatusDot(if (selected) Pos.Primary else androidx.compose.ui.graphics.Color.Transparent)
-        Column(modifier = Modifier.weight(1f)) {
-            Text(title, style = PosType.Label, color = Pos.Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(subtitle, style = PosType.Caption, color = Pos.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
-        Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            if (amount.isNotBlank()) Text(amount, style = PosType.Label, color = Pos.Ink)
-            Pill(pill.first, pill.second)
+        // Judul sebaris dengan nominal, keterangan sebaris dengan status (sama dengan ponsel).
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Pos.Space3)) {
+                Text(title, style = PosType.Label, color = Pos.Ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                if (amount.isNotBlank()) Text(amount, style = PosType.Label, color = Pos.Ink, maxLines = 1)
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Pos.Space3)) {
+                Text(subtitle, style = PosType.Caption, color = Pos.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                Pill(pill.first, pill.second)
+            }
         }
     }
-    HorizontalLine(modifier = Modifier.padding(start = Pos.Space4))
+    // Garis hanya di antara baris, tidak setelah baris terakhir.
+    if (divider) HorizontalLine(modifier = Modifier.padding(start = Pos.Space4))
 }
 
 @Composable
@@ -264,7 +276,7 @@ private fun ShiftDetail(shift: LocalShiftEntity, state: PosUiState, actions: Pos
     Column(modifier = Modifier.fillMaxSize()) {
         Row(modifier = Modifier.padding(Pos.Space5), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Pos.Space3)) {
             Column(modifier = Modifier.weight(1f)) {
-                Text("Shift ${shift.businessDate}", style = PosType.Title, color = Pos.Ink)
+                Text("Shift ${dayLabel(shift.businessDate)}", style = PosType.Title, color = Pos.Ink)
                 Text(
                     "Opened by ${shift.openedByName ?: "—"} · ${dateTimeLabel(shift.openedAtMillis)}" +
                         (shift.closedByName?.let { " · Closed by $it" } ?: "") + (shift.approvedByName?.let { ", approved by $it" } ?: ""),
@@ -275,7 +287,7 @@ private fun ShiftDetail(shift: LocalShiftEntity, state: PosUiState, actions: Pos
             if (shift.status == "closed") PosButton("Print report", onClick = { actions.printShiftReport(shift.localUuid) }, variant = ButtonVariant.Secondary, icon = Icons.Outlined.Print)
         }
         HorizontalLine()
-        Column(modifier = Modifier.verticalScroll(rememberScrollState()).padding(Pos.Space6), verticalArrangement = Arrangement.spacedBy(Pos.Space3)) {
+        Column(modifier = Modifier.fadingVerticalScroll().padding(Pos.Space6), verticalArrangement = Arrangement.spacedBy(Pos.Space3)) {
             ShiftNumbers(shift, state)
         }
     }

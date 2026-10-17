@@ -359,7 +359,10 @@ input[type="checkbox"]:disabled, input[type="radio"]:disabled { opacity: .45; cu
 .board-col { background: #fafafa; border: 1px solid var(--line); border-radius: var(--radius); padding: 10px; display: grid; gap: 8px; min-height: calc(100vh - 180px); align-content: start; }
 .board-col > header { display: flex; justify-content: space-between; align-items: center; padding: 2px 4px 4px; font-size: var(--fs-sm); font-weight: var(--fw-medium); }
 .ticket { background: #fff; border: 1px solid var(--line); border-radius: var(--control-radius); padding: 12px; display: grid; gap: 8px; box-shadow: var(--shadow); }
-.ticket-head { display: flex; justify-content: space-between; gap: 8px; font-size: var(--fs-sm); }
+.ticket-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: var(--fs-sm); }
+/* Kode pesanan dan lama menunggu tidak pecah baris di kolom sempit; kode yang mengalah dengan "…". */
+.ticket-head strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ticket-head span { flex: 0 0 auto; white-space: nowrap; }
 .ticket-head span { color: var(--muted); font-size: var(--fs-xs); }
 .ticket-head .late { color: var(--danger); }
 .ticket ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; font-size: var(--fs-sm); }
@@ -671,7 +674,19 @@ body:has(.dialog) .ask-eline-fab { display: none; }
 .option-row .input-affix > span { left: 8px; font-size: var(--fs-sm); }
 .option-row .input-affix > input { padding-left: 40px; }
 .option-edit > input:not([type="hidden"]), .option-new > input:not([type="hidden"]) { flex: 1 1 0; min-width: 72px; }
-@media (max-width: 480px) { .option-row .input-affix { width: 104px; flex-basis: 104px; } }
+/* Ponsel: nama, harga, simpan, dan hapus tetap satu baris; nama yang mengalah, bukan tombol yang turun. */
+@media (max-width: 480px) {
+  .option-row .input-affix { width: 88px; flex-basis: 88px; }
+  .option-row .input-affix > input { padding-left: 36px; }
+  .option-edit, .option-new { flex-wrap: nowrap; }
+  .option-edit > input:not([type="hidden"]), .option-new > input:not([type="hidden"]) { min-width: 0; }
+  .sortable.options .sortable-handle { flex-basis: 24px; width: 24px; margin-left: 0; }
+  .option-row { padding-left: 2px; gap: 4px; }
+  .option-edit, .option-new { gap: 4px; }
+  /* Tombol simpan baris hanya perlu saat baris diedit: muncul begitu nama/harga disentuh. */
+  .option-edit > button { display: none; }
+  .option-edit:focus-within > button { display: grid; }
+}
 .option-edit input:not(:focus):not(:hover) { border-color: transparent; background: transparent; }
 .option-row .form-message { flex-basis: 100%; margin: 0 0 0 8px; }
 .option-row .form-message.ok { animation: note-out .3s ease 2.5s forwards; overflow: hidden; }
@@ -906,6 +921,13 @@ form:has(input[name="role"][value="viewer"]:checked) .approval-pin { display: no
 .toast button:hover { opacity: 1; background: rgb(255 255 255 / .12); }
 @keyframes toast-in { from { opacity: 0; transform: translateY(-8px) scale(.98); } }
 @media (min-width: 761px) and (max-width: 1180px) { .toasts { left: calc(50vw + 52px); } } /* rail 104 px */
+/* Tablet (rail): konten 665 px di potret. Sel tabel 12 px dan kolom Kitchen minimal 150 px supaya
+   tabel tujuh kolom dan empat kolom pesanan muat tanpa geser samping (cek 17 Okt 2026). */
+@media (min-width: 761px) and (max-width: 1180px) {
+  th { padding-left: 12px; padding-right: 12px; }
+  td { padding-left: 12px; padding-right: 12px; }
+  .board { grid-template-columns: repeat(4, minmax(150px, 1fr)); }
+}
 @media (max-width: 760px) { .toasts { left: 50%; top: 68px; } }
 @media (prefers-reduced-motion: reduce) { .toast { animation: none; } }
 /* Kaki drawer selalu terlihat (misalnya Save produk setelah mengatur varian). */
@@ -1139,4 +1161,43 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: non
 @media (prefers-contrast: more) {
   :root { --line: #a1a1aa; --muted: #52525b; }
   .mobile-header, .tabbar, .import-bar { background: var(--surface); backdrop-filter: none; -webkit-backdrop-filter: none; }
+}
+
+/* ---------- Tepi gulir lembut (permintaan owner 17 Okt 2026, audit apple-design) ----------
+   Isi yang digulir memudar 20 px di tepi wadahnya, bukan terpotong garis lurus, dan garis
+   pembatas kepala/kaki panel baru muncul saat memang ada isi yang tergulir di baliknya.
+   Pudar tiap tepi mengikuti posisi gulir (scroll-driven animation); browser tanpa dukungan
+   tetap memakai garis lama. Wadah yang tidak bisa digulir tidak memudar sama sekali. */
+@property --edge-start { syntax: "<length>"; inherits: false; initial-value: 0px; }
+@property --edge-end { syntax: "<length>"; inherits: false; initial-value: 0px; }
+@keyframes edge-start { to { --edge-start: 20px; } }
+@keyframes edge-end { from { --edge-end: 20px; } to { --edge-end: 0px; } }
+@keyframes edge-line-below { from { border-bottom-color: transparent; } to { border-bottom-color: var(--edge-line, var(--line)); } }
+@keyframes edge-line-above { from { border-top-color: var(--line); } to { border-top-color: transparent; } }
+@supports (animation-timeline: scroll()) {
+  /* Gulir ke samping (tabel lebar, papan Kitchen, tab): kiri memudar setelah digeser, kanan
+     memudar selama masih ada isi. Menggantikan pudar kanan statis di tab ponsel. */
+  .table-wrap, .board, .tabs {
+    mask-image: linear-gradient(to right, transparent, #000 var(--edge-start), #000 calc(100% - var(--edge-end)), transparent);
+    animation: edge-start linear both, edge-end linear both;
+    animation-timeline: scroll(self inline), scroll(self inline);
+    animation-range: 0 24px, calc(100% - 24px) 100%;
+  }
+  .drawer-body, .ask-eline-list, .whats-new-list, .promo-products {
+    mask-image: linear-gradient(to bottom, transparent, #000 var(--edge-start), #000 calc(100% - var(--edge-end)), transparent);
+    animation: edge-start linear both, edge-end linear both;
+    animation-timeline: scroll(self), scroll(self);
+    animation-range: 0 24px, calc(100% - 24px) 100%;
+  }
+  /* Garis kepala/kaki panel mengikuti gulir isinya (timeline bernama dibagi lewat timeline-scope). */
+  .drawer { timeline-scope: --panel-body; }
+  .ask-eline { timeline-scope: --panel-body; }
+  .whats-new { timeline-scope: --panel-body; }
+  .drawer-body, .ask-eline-list, .whats-new-list { scroll-timeline: --panel-body block; }
+  .drawer-header, .ask-eline-head, .whats-new-head { border-bottom-color: transparent; animation: edge-line-below linear both; animation-timeline: --panel-body; animation-range: 0 24px; }
+  .ask-eline-head { --edge-line: var(--line-soft); }
+  .drawer-footer { border-top-color: transparent; animation: edge-line-above linear both; animation-timeline: --panel-body; animation-range: calc(100% - 24px) 100%; }
+  @media (max-width: 760px) {
+    .mobile-header { border-bottom-color: transparent; animation: edge-line-below linear both; animation-timeline: scroll(root); animation-range: 0 24px; }
+  }
 }

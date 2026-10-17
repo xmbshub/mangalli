@@ -9,11 +9,11 @@ import id.mangalli.pos.offline.LocalShiftEntity
 import id.mangalli.pos.offline.OfflineOrders
 import id.mangalli.pos.offline.OpeningHour
 import id.mangalli.pos.security.OfflineStaff
-import org.json.JSONArray
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import kotlin.math.ceil
+import org.json.JSONArray
 
 // Keadaan layar tablet. MainActivity memegang data dan logika; UI hanya
 // menggambar PosUiState dan memanggil PosActions.
@@ -286,12 +286,18 @@ fun clockLabel(millis: Long?): String =
 fun dateTimeLabel(millis: Long?): String =
     if (millis == null) "—" else SimpleDateFormat("d MMM, HH:mm", Locale.ENGLISH).format(Date(millis))
 
+// Tanggal bisnis "2026-10-14" ditampilkan "Wed 14 Oct", sama gayanya dengan tanggal lain di aplikasi.
+fun dayLabel(isoDate: String): String =
+    runCatching { java.time.LocalDate.parse(isoDate).format(java.time.format.DateTimeFormatter.ofPattern("EEE d MMM", Locale.ENGLISH)) }.getOrDefault(isoDate)
+
 fun elapsedLabel(millis: Long, now: Long = System.currentTimeMillis()): String {
     val minutes = ((now - millis) / 60_000).coerceAtLeast(0)
     return when {
         minutes < 1 -> "Just now"
         minutes < 60 -> "$minutes min"
-        else -> "${minutes / 60} h ${minutes % 60} min"
+        minutes < 24 * 60 -> "${minutes / 60} h ${minutes % 60} min"
+        // Lebih dari sehari: hari dan jam saja, sama dengan dashboard.
+        else -> "${minutes / 1440} d ${minutes % 1440 / 60} h"
     }
 }
 

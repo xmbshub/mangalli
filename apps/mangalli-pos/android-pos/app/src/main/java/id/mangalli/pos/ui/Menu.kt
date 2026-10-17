@@ -40,7 +40,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -49,7 +48,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Close
@@ -250,7 +248,8 @@ private fun CatalogPane(state: PosUiState, actions: PosActions, onProduct: (Cata
                 CustomAmountPanel(maximum = state.outlet.customAmountMax, onAdd = actions::addCustomAmount, modifier = Modifier.fillMaxSize())
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(Pos.Space3)) {
-                    Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Pos.Space2)) {
+                    val chips = rememberScrollState()
+                    Row(modifier = Modifier.fillMaxWidth().scrollEdgeFade(top = chips.canScrollBackward, bottom = chips.canScrollForward, fade = 28.dp, horizontal = true).horizontalScroll(chips), horizontalArrangement = Arrangement.spacedBy(Pos.Space2)) {
                         ChoiceChip(ALL, selected = category == ALL, onClick = { category = ALL })
                         if (bestSellers > 0) ChoiceChip("Best sellers · $bestSellers", selected = category == BEST_SELLERS, onClick = { category = BEST_SELLERS }, icon = BestSellerIcon, iconTint = Pos.Warning)
                         if (favourites > 0) ChoiceChip("Favourites · $favourites", selected = category == FAVOURITES, onClick = { category = FAVOURITES }, icon = FavouriteIcon, iconTint = Pos.Primary)
@@ -269,7 +268,7 @@ private fun CatalogPane(state: PosUiState, actions: PosActions, onProduct: (Cata
                             LazyVerticalGrid(
                             columns = GridCells.Adaptive(minSize = if (compact) 148.dp else 168.dp),
                             state = grid,
-                            modifier = Modifier.fillMaxSize(),
+                            modifier = Modifier.fillMaxSize().scrollEdgeFade(top = grid.canScrollBackward, bottom = grid.canScrollForward),
                             contentPadding = PaddingValues(bottom = Pos.Space4),
                             horizontalArrangement = Arrangement.spacedBy(Pos.Space3),
                             verticalArrangement = Arrangement.spacedBy(Pos.Space3),
@@ -490,7 +489,7 @@ private fun OrderPane(state: PosUiState, actions: PosActions, onEditItem: (CartI
             if (state.cart.isEmpty()) {
                 EmptyState("No items yet", modifier = Modifier.fillMaxSize())
             } else {
-                LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(vertical = Pos.Space2)) {
+                FadingLazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(vertical = Pos.Space2)) {
                     items(state.cart, key = { it.cartLineId }) { item ->
                         val saved = state.billQuantities[item.cartLineId] ?: 0
                         OrderLine(
@@ -691,7 +690,7 @@ private fun OpenBillsDialog(bills: List<LocalOrderEntity>, activeBillId: String?
             if (filtered.isEmpty()) {
                 EmptyState(if (bills.isEmpty()) "No open bills" else "No bills match", modifier = Modifier.fillMaxSize())
             } else {
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(Pos.Space2)) {
+                FadingLazyColumn(verticalArrangement = Arrangement.spacedBy(Pos.Space2)) {
                     items(filtered, key = { it.localUuid }) { bill ->
                         PosCard(onClick = { onOpen(bill.localUuid) }, selected = bill.localUuid == activeBillId, padding = PaddingValues(Pos.Space4)) {
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Pos.Space3)) {
@@ -805,7 +804,7 @@ private fun ProductSheet(
             },
         )
         Column(
-            modifier = Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(horizontal = dialogInset(), vertical = Pos.Space5),
+            modifier = Modifier.weight(1f, fill = false).fadingVerticalScroll().padding(horizontal = dialogInset(), vertical = Pos.Space5),
             verticalArrangement = Arrangement.spacedBy(Pos.Space5),
         ) {
             groups.forEach { group ->

@@ -17,26 +17,23 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Print
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.PrimaryTabRow
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -93,8 +90,8 @@ fun OrdersScreen(state: PosUiState, actions: PosActions) {
                 if (refreshing) { actions.refreshOrders(); delay(900); refreshing = false }
             }
             PullToRefreshBox(isRefreshing = refreshing, onRefresh = { refreshing = true }, modifier = Modifier.fillMaxSize()) {
-                if (orders.isEmpty()) Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) { EmptyState(column.empty, modifier = Modifier.fillMaxWidth().padding(top = 160.dp)) }
-                else LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(vertical = Pos.Space3), verticalArrangement = Arrangement.spacedBy(Pos.Space2)) {
+                if (orders.isEmpty()) Column(modifier = Modifier.fillMaxSize().fadingVerticalScroll()) { EmptyState(column.empty, modifier = Modifier.fillMaxWidth().padding(top = 160.dp)) }
+                else FadingLazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(vertical = Pos.Space3), verticalArrangement = Arrangement.spacedBy(Pos.Space2)) {
                     items(orders, key = { it.localUuid }) { order ->
                         OrderCard(order, now, onClick = { selectedId = order.localUuid }, modifier = Modifier.animateItem())
                     }
@@ -121,7 +118,7 @@ fun OrdersScreen(state: PosUiState, actions: PosActions) {
                     if (orders.isEmpty()) {
                         EmptyState(column.empty, modifier = Modifier.fillMaxSize())
                     } else {
-                        LazyColumn(contentPadding = PaddingValues(Pos.Space3), verticalArrangement = Arrangement.spacedBy(Pos.Space2)) {
+                        FadingLazyColumn(contentPadding = PaddingValues(Pos.Space3), verticalArrangement = Arrangement.spacedBy(Pos.Space2)) {
                             items(orders, key = { it.localUuid }) { order ->
                                 OrderCard(order, now, onClick = { selectedId = order.localUuid }, modifier = Modifier.animateItem())
                             }
@@ -228,7 +225,7 @@ fun OrderDetailDialog(order: LocalOrderEntity, state: PosUiState, actions: PosAc
 @Composable
 fun OrderSummary(order: LocalOrderEntity, cashier: String?) {
     val items = OfflineOrders.itemsFromJson(order.itemsJson)
-    Column(modifier = Modifier.verticalScroll(rememberScrollState()).padding(dialogInset()), verticalArrangement = Arrangement.spacedBy(Pos.Space3)) {
+    Column(modifier = Modifier.fadingVerticalScroll().padding(dialogInset()), verticalArrangement = Arrangement.spacedBy(Pos.Space3)) {
         items.forEach { item ->
             Row {
                 Text("${item.quantity}×", style = PosType.Body, color = Pos.Muted, modifier = Modifier.width(36.dp))
@@ -256,7 +253,7 @@ fun OrderSummary(order: LocalOrderEntity, cashier: String?) {
 @Composable
 private fun CancelStep(order: LocalOrderEntity, needsApproval: Boolean, reason: String, onReason: (String) -> Unit, pin: String, onPin: (String) -> Unit, error: String?) {
     val paid = order.paymentStatus == "completed"
-    Column(modifier = Modifier.verticalScroll(rememberScrollState()).padding(dialogInset()), verticalArrangement = Arrangement.spacedBy(Pos.Space4)) {
+    Column(modifier = Modifier.fadingVerticalScroll().padding(dialogInset()), verticalArrangement = Arrangement.spacedBy(Pos.Space4)) {
         InfoBanner(
             if (paid) "This order is paid (${formatPrice(order.total)}, ${paymentMethodLabel(order.paymentMethod)}). Cancelling it records a refund: hand the money back to the customer."
             else "Removed from the kitchen.",
